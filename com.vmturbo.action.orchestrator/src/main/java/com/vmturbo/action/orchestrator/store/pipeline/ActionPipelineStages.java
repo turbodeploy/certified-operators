@@ -33,6 +33,7 @@ import com.google.common.collect.ArrayListMultimap;
 import com.google.common.collect.Multimap;
 import com.google.common.collect.Streams;
 
+import org.apache.commons.collections.map.HashedMap;
 import org.apache.commons.lang3.mutable.MutableInt;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -80,7 +81,10 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
 import com.vmturbo.common.protobuf.action.ActionDTO.Severity;
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
 import com.vmturbo.common.protobuf.action.UnsupportedActionException;
+import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
+import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettingGroup;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.communication.CommunicationException;
@@ -1554,78 +1558,85 @@ public class ActionPipelineStages {
                     .filter(visibilityPredicate)
                     .forEach(action -> findActionTarget(action, entityToActionList));
 
-            // In order to reduce memory footprint, process in fixed-size chunks.
-            Set<Long> oids = actionTopologyStore.getSourceTopology().get()
-                    .entityGraph().oids();
-            Set<Long> oidList = new HashSet<>(telemetryChunkSize);
-            for (Long oid : oids) {
-                oidList.add(oid);
-                if (oidList.size() == telemetryChunkSize) {
-                    updateActionMetricsDescriptor(oidList, entityToActionList, actionStore);
-                    oidList.clear();
-                }
-            }
-            // Flush final partial chunk
-            if (!oidList.isEmpty()) {
-                updateActionMetricsDescriptor(oidList, entityToActionList, actionStore);
-            }
-        }
-
-        private void updateActionMetricsDescriptor(@Nonnull Set<Long> oidList,
-                @Nonnull Multimap<Long, Action> entityToActionList,
-                @Nonnull ActionStore actionStore) {
-            EntitiesAndSettingsSnapshot snapshot = null;
-            if (FeatureFlags.ENABLE_ACTION_AUTOMATION_TELEMETRY.isEnabled()) {
-                snapshot = entitySettingsCache.newSnapshot(oidList, realtimeContextId);
-            }
-            // For each entity, update the broadcast entities and automation levels gauges
-            EntitiesAndSettingsSnapshot finalSnapshot = snapshot;
-            actionTopologyStore.getSourceTopology().get().entityGraph().getEntities(oidList)
+            // Build a map from entity OID to the entity's attributes required for the metrics.
+            Map<Long, EntitySummary> oidToEntitySummary = new HashedMap();
+            actionTopologyStore.getSourceTopology().get().entityGraph().entities()
                     .forEach(entity -> {
-                        final String entityType = EntityType.forNumber(entity.getEntityType()).toString();
-                        final String envType = entity.getEnvironmentType().toString();
-                        final String entityState = entity.getEntityState().toString();
-                        Severity severity = Severity.NORMAL;
-                        if (actionStore.getEntitySeverityCache().isPresent()) {
-                            Optional<Severity> optSeverity =
-                                    actionStore.getEntitySeverityCache().get().getSeverity(entity.getOid());
-                            if (optSeverity.isPresent()) {
-                                severity = optSeverity.get();
-                            }
-                        }
-                        String entitySeverity = severity.toString();
+                        oidToEntitySummary.put(entity.getOid(), new EntitySummary(entity, actionStore));
+                    });
 
-                        // Update the broadcast entities gauge.
-                        updateBroadcastEntitiesGauge(entityType, envType, entityState, entitySeverity);
-                        if (FeatureFlags.ENABLE_ACTION_AUTOMATION_TELEMETRY.isEnabled()) {
-                            // Update entity automation level gauge
-                            updateAutomationSettingsGauge(finalSnapshot, entity, entityType, envType,
-                                    entityState, entitySeverity);
+            if (FeatureFlags.ENABLE_ACTION_AUTOMATION_TELEMETRY.isEnabled()) {
+                entitySettingsCache.getEntitySettings(getContext().getTopologyContextId())
+                        .forEachRemaining(entitySettingsResponse -> {
+                    for (EntitySettingGroup settingsGroup : entitySettingsResponse.getSettingGroupList()) {
+                        Setting setting = settingsGroup.getSetting();
+                        final String settingName = setting.getSettingSpecName();
+                        final String automationLevel = setting.getEnumSettingValue().getValue();
+                        for (Long entityOid : settingsGroup.getEntityOidsList()) {
+                            updateMetricsForEntity(oidToEntitySummary.get(entityOid),
+                                    entityToActionList.get(entityOid), settingName, automationLevel);
                         }
-                        // For each action that targets this entity, update the action gauge.
-                        Collection<Action> targetingActions = entityToActionList.get(entity.getOid());
-                        for (Action action : targetingActions) {
-                            updateActionMetricsDescriptor(action, entityType, envType);
-                        }
+                    }
+                });
+            }
+
+            // Update metrics for all entities without settings.
+            oidToEntitySummary.values().stream()
+                    .filter(summary -> !summary.isUpdatedEntityLevelMetrics())
+                    .forEach(entitySummary -> {
+                        updateMetricsForEntity(entitySummary,
+                                entityToActionList.get(entitySummary.getOid()), "", "");
                     });
         }
 
-       /**
-         * Generate a descriptor string for the action and push to the metrics end point.
+        /**
+         * Update the action counts gauge for an action.
          *
-         * @param action record the given action
-         * @return optional of the action target's OID, if present.
+         * @param action the action
+         * @param entityType entity type of the action's target
+         * @param env environment type of the action's target
          */
         @Nonnull
-        private Severity updateActionMetricsDescriptor(final Action action,
-                final String entityType, final String env) {
+        private void updateActionMetricsDescriptor(final Action action,
+                                                   final String entityType, final String env) {
             String actionSeverity  = action.getActionSeverity().name();
             String actionCategory  = action.getActionCategory().name();
             String actionState  = action.getState().name();
 
             ACTION_COUNTS_GAUGE.labels(action.getTranslationResultOrOriginal().getInfo().getActionTypeCase().name(),
-                entityType, env, actionCategory, actionSeverity, actionState).increment();
-            return action.getActionSeverity();
+                                       entityType, env, actionCategory, actionSeverity, actionState).increment();
+        }
+
+        private void updateMetricsForEntity(EntitySummary entitySummary,
+                @Nonnull Collection<Action> targetingActions, String automationType,
+                String automationLevel) {
+            if (entitySummary == null) {
+                return;
+            }
+            final String entityType = entitySummary.getEntityType().toString();
+            final String envType = entitySummary.getEnvType().toString();
+            final String entityState = entitySummary.getEntityState().toString();
+            final String entitySeverity = entitySummary.getSeverity().toString();
+
+            // Handle metrics that are updated once per entity.
+            if (!entitySummary.isUpdatedEntityLevelMetrics()) {
+                entitySummary.setUpdatedEntityLevelMetrics(true);
+                // Update the broadcast entities gauge.
+                updateBroadcastEntitiesGauge(entityType, envType, entityState, entitySeverity);
+            }
+
+            // Update entity automation level gauge if we are tracking the automation setting type.
+            if (ConfigurableActionSettings.fromSettingName(automationType) != null) {
+                AUTOMATION_LEVELS.labels(
+                        entityType, envType, entityState, entitySeverity,
+                        automationType, automationLevel
+                ).increment();
+            }
+
+            // For each action that targets this entity, update the action gauge.
+            for (Action action : targetingActions) {
+                updateActionMetricsDescriptor(action, entityType, envType);
+            }
         }
 
         /**
@@ -1645,27 +1656,6 @@ public class ActionPipelineStages {
             }
         }
 
-        private void updateAutomationSettingsGauge(final @Nonnull EntitiesAndSettingsSnapshot snapshot,
-                final @Nonnull ActionGraphEntity entity,
-                final @Nonnull String entityType,
-                final @Nonnull String envType,
-                final @Nonnull String entityState,
-                final @Nonnull String severity) {
-            Map<String, Setting> settings = snapshot.getSettingsForEntity(entity.getOid());
-            if (settings == null) {
-                return;
-            }
-            settings.entrySet().stream()
-                    .filter(settingEntry -> ConfigurableActionSettings
-                            .fromSettingName(settingEntry.getKey()) != null)
-                    .forEach(settingEntry ->
-                            AUTOMATION_LEVELS.labels(
-                                    entityType, envType, entityState, severity,
-                                    settingEntry.getKey(),
-                                    settingEntry.getValue().getEnumSettingValue().getValue()
-                            ).increment());
-        }
-
         /**
          * Update the broadcast entities gauge.
          *
@@ -1681,6 +1671,64 @@ public class ActionPipelineStages {
             BROADCAST_ENTITIES_GAUGE
                     .labels(entityType, envType, actionState, actionSeverity)
                     .increment();
+        }
+
+        /**
+         * Helper class that contains a summarization of entity information required for metrics.
+         */
+        private class EntitySummary {
+            private final Long oid;
+            private final EntityType entityType;
+            private final EnvironmentType envType;
+            private final EntityState entityState;
+            private final Severity severity;
+            private boolean updatedEntityLevelMetrics;
+
+            EntitySummary(@Nonnull final ActionGraphEntity entity,
+                    @Nonnull final ActionStore actionStore) {
+                this.oid = entity.getOid();
+                this.entityType = EntityType.forNumber(entity.getEntityType());
+                this.envType = entity.getEnvironmentType();
+                this.entityState = entity.getEntityState();
+                Severity entitySeverity = Severity.NORMAL;
+                if (actionStore.getEntitySeverityCache().isPresent()) {
+                    Optional<Severity> optSeverity =
+                            actionStore.getEntitySeverityCache().get().getSeverity(entity.getOid());
+                    if (optSeverity.isPresent()) {
+                        entitySeverity = optSeverity.get();
+                    }
+                }
+                this.severity = entitySeverity;
+                this.updatedEntityLevelMetrics = false;
+            }
+
+            public Long getOid() {
+                return oid;
+            }
+
+            public EntityType getEntityType() {
+                return entityType;
+            }
+
+            public EnvironmentType getEnvType() {
+                return envType;
+            }
+
+            public EntityState getEntityState() {
+                return entityState;
+            }
+
+            public Severity getSeverity() {
+                return severity;
+            }
+
+            public boolean isUpdatedEntityLevelMetrics() {
+                return updatedEntityLevelMetrics;
+            }
+
+            public void setUpdatedEntityLevelMetrics(boolean updatedEntityLevelMetrics) {
+                this.updatedEntityLevelMetrics = updatedEntityLevelMetrics;
+            }
         }
     }
 
