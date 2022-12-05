@@ -36,6 +36,10 @@ public class VirtualMachineAspectMapper extends AbstractAspectMapper {
     private final RepositoryApi repositoryApi;
     private BusinessUserAspectMapper businessUserAspectMapper;
 
+    private static final String ACTIVE_MEMORY_EXPANSION = "activeMemoryExpansionEnabled";
+    private static final String RMC_STATE = "rmcState";
+    private static final String DEDICATED_SHARING_MODE = "dedicatedSharingMode";
+
     /**
      * Constructor.
      *
@@ -53,6 +57,8 @@ public class VirtualMachineAspectMapper extends AbstractAspectMapper {
         if (entity.getTypeSpecificInfo().hasVirtualMachine()) {
             final VirtualMachineInfo virtualMachineInfo = entity.getTypeSpecificInfo()
                 .getVirtualMachine();
+            final Map<String, String> entityPropertyMap = entity.getEntityPropertyMapMap();
+
             if (!virtualMachineInfo.getIpAddressesList().isEmpty()) {
                 aspect.setIp(virtualMachineInfo
                     .getIpAddressesList()
@@ -72,6 +78,27 @@ public class VirtualMachineAspectMapper extends AbstractAspectMapper {
                 aspect.setConnectedNetworks(virtualMachineInfo.getConnectedNetworksList().stream()
                     .map(this::mapToNetwork).collect(Collectors.toList()));
             }
+
+            if (virtualMachineInfo.hasHasDedicatedProcessors()) {
+                aspect.setHasDedicatedProcessors(virtualMachineInfo.getHasDedicatedProcessors());
+            }
+            if (virtualMachineInfo.hasProcessorCompatibilityMode()) {
+                aspect.setProcessorCompactMode(virtualMachineInfo.getProcessorCompatibilityMode());
+            }
+            if (entityPropertyMap.containsKey(ACTIVE_MEMORY_EXPANSION)) {
+                aspect.setActiveMemoryExpansionEnabled(
+                        Boolean.valueOf(entityPropertyMap.get(ACTIVE_MEMORY_EXPANSION)));
+            }
+            if (entityPropertyMap.containsKey(RMC_STATE)) {
+                aspect.setResourceMonitoringControlState(entityPropertyMap.get(RMC_STATE));
+            }
+            if (virtualMachineInfo.hasSharingMode()) {
+                aspect.setSharingMode(virtualMachineInfo.getSharingMode());
+            }
+            if (entityPropertyMap.containsKey(DEDICATED_SHARING_MODE)) {
+                aspect.setDedicatedSharingMode(entityPropertyMap.get(DEDICATED_SHARING_MODE));
+            }
+
             aspect.setSessions(getBusinessUserSessions(entity));
             final String isEbsOptimized =
                     entity.getEntityPropertyMapMap().get(StringConstants.EBS_OPTIMIZED);
