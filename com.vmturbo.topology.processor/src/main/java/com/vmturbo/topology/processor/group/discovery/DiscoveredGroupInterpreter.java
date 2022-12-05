@@ -18,8 +18,10 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.protobuf.InvalidProtocolBufferException;
 import com.google.protobuf.util.JsonFormat;
@@ -128,8 +130,13 @@ class DiscoveredGroupInterpreter {
         final List<CommonDTO.GroupDTO> legalDtoList = dtoList.stream()
             .filter(this::validGroupId)
             .collect(Collectors.toList());
+        final Map<String, Long> targetEntityIdMap = entityStore.getTargetEntityIdMap(targetId)
+                .orElseGet(() -> {
+                    logger.warn("Unable to resolve target entity ID map for {}", targetId);
+                    return Collections.emptyMap();
+                });
         final GroupInterpretationContext context =
-            new GroupInterpretationContext(targetId, legalDtoList);
+            new GroupInterpretationContext(targetId, legalDtoList, targetEntityIdMap);
         legalDtoList.forEach(group -> {
             // We check to see if we need to interpret this particular group, because the
             // interpretation of a previous group that contains this one may have already triggered
@@ -222,26 +229,26 @@ class DiscoveredGroupInterpreter {
 
         if (sdkDTO.hasOwner()) {
             final Optional<Long> ownerForResourceGroup =
-                    getOwnerOIDForResourceGroup(sdkDTO, context.targetId);
+                    getOwnerOIDForResourceGroup(sdkDTO, context);
             ownerForResourceGroup.ifPresent(groupDefinition::setOwner);
         }
 
         return Optional.of(groupDefinition);
     }
 
-    private Optional<Long> getOwnerOIDForResourceGroup(final GroupDTO sdkDTO, final Long targetId) {
+    private Optional<Long> getOwnerOIDForResourceGroup(final GroupDTO sdkDTO,
+                                                       @Nonnull GroupInterpretationContext groupContext) {
         final String groupOwner = sdkDTO.getOwner();
         if (!StringUtils.isBlank(groupOwner)) {
-            final Optional<Map<String, Long>> targetEntityIdMap =
-                    entityStore.getTargetEntityIdMap(targetId);
-            if (targetEntityIdMap.isPresent()) {
-                final Long ownerOID = targetEntityIdMap.get().get(groupOwner);
+            final Map<String, Long> targetEntityIdMap = groupContext.targetEntityidMap();
+            if (!targetEntityIdMap.isEmpty()) {
+                final Long ownerOID = targetEntityIdMap.get(groupOwner);
                 if (ownerOID == null) {
                     logger.warn("OwnerID is null for '{}' group", sdkDTO.getGroupName());
                 }
                 return Optional.ofNullable(ownerOID);
             } else {
-                logger.error("There are no entities for '{}' target ", targetId);
+                logger.error("There are no entities for '{}' target ", groupContext.targetId());
             }
         } else {
             logger.error("Owner is not set for '{}' group", sdkDTO.getGroupName());
@@ -337,12 +344,7 @@ class DiscoveredGroupInterpreter {
     private Optional<StaticMembers> parseMemberList(
             @Nonnull final CommonDTO.GroupDTO groupDTO,
             @Nonnull final GroupInterpretationContext context) {
-        final Optional<Map<String, Long>> idMapOpt =
-                entityStore.getTargetEntityIdMap(context.targetId);
-        if (!idMapOpt.isPresent()) {
-            logger.warn("No entity ID map available for target {}", context.targetId);
-            return Optional.empty();
-        }
+        final Map<String, Long> entityIdMap = context.targetEntityidMap();
         /*
          * If a group_name equals uuid of some entity of the same target, this means, that group
          * represents the entity. We do omit such groups, as this is a type of hacks in Legacy.
@@ -359,9 +361,8 @@ class DiscoveredGroupInterpreter {
          *     member: "vsphere-dc9.eng.vmturbo.com-Folder-group-h23"
          * }
          */
-        final Map<String, Long> idMap = idMapOpt.get();
         final String groupId = GroupProtoUtil.extractId(groupDTO);
-        if (idMap.containsKey(groupId)) {
+        if (entityIdMap.containsKey(groupId)) {
             logger.warn("Skipping group {} as it is represented by entity already", groupId);
             return Optional.empty();
         }
@@ -371,7 +372,7 @@ class DiscoveredGroupInterpreter {
         final AtomicInteger missingMemberCount = new AtomicInteger(0);
         final Map<MemberType, StaticMemberIds> membersByType = new HashMap<>();
         memberList.forEach(uuid -> {
-            final Long discoveredEntityId = idMap.get(uuid);
+            final Long discoveredEntityId = entityIdMap.get(uuid);
             if (discoveredEntityId != null) {
                 Optional<Entity> entity = entityStore.getEntity(discoveredEntityId);
 
@@ -466,55 +467,6 @@ class DiscoveredGroupInterpreter {
                         .addAllMemberLocalId(members.getUnresolvedMemberIds())
         )));
         return Optional.of(staticMemberBldr.build());
-    }
-
-    /**
-     * Converts template names to OIDs for a template exclusion group.
-     *
-     * @param templateExclusionGroup template exclusion group
-     * @param targetId The target that discovered the groups
-     * @param targetName The target name
-     * @return the set of template OIDs
-     */
-    @Nonnull
-    public Set<Long> convertTemplateNamesToOids(@Nonnull CommonDTO.GroupDTO templateExclusionGroup,
-            long targetId, @Nonnull String targetName) {
-        Optional<Map<String, Long>> entityMap = entityStore.getTargetEntityIdMap(targetId);
-
-        if (!entityMap.isPresent()) {
-            logger.warn("No entity ID map available for target {}", targetName);
-            return Collections.emptySet();
-        }
-
-        ConstraintInfo constraint = templateExclusionGroup.getConstraintInfo();
-
-        if (constraint == null) {
-            logger.warn("Constraint is null for group '{}', target {}", templateExclusionGroup,
-                    targetName);
-            return Collections.emptySet();
-        }
-
-        if (constraint.getExcludedTemplatesCount() <= 0) {
-            logger.warn("No cloud tiers for group '{}', target {}", templateExclusionGroup,
-                    targetName);
-            return Collections.emptySet();
-        }
-
-        // The OIDs should be sorted
-        Set<Long> result = new TreeSet<>();
-
-        for (String templateName : constraint.getExcludedTemplatesList()) {
-            Long oid = entityMap.get().get(templateName);
-
-            if (oid == null) {
-                logger.error("No OID found for cloud tier '{}', target {}", templateName,
-                        targetName);
-            } else {
-                result.add(oid);
-            }
-        }
-
-        return result;
     }
 
     /**
@@ -756,6 +708,8 @@ class DiscoveredGroupInterpreter {
          */
         private final Deque<String> groupChain = new ArrayDeque<>();
 
+        private final Map<String, Long> targetEntityIdMap;
+
         /**
          * When we detect a cycle, this variable is set to true until all the groups in the
          * cycle are "popped" off the chain. This is so every group in the cycle knows not to
@@ -765,7 +719,8 @@ class DiscoveredGroupInterpreter {
 
         @VisibleForTesting
         GroupInterpretationContext(final long targetId,
-                                   @Nonnull final List<GroupDTO> dtoList) {
+                                   @Nonnull final List<GroupDTO> dtoList,
+                                   @Nonnull Map<String, Long> targetEntityIdMap) {
             this.targetId = targetId;
             this.groupsByUuid = Collections.unmodifiableMap(dtoList.stream()
                 .collect(Collectors.toMap(GroupProtoUtil::extractId, Function.identity(),
@@ -781,6 +736,11 @@ class DiscoveredGroupInterpreter {
                         return g1;
                     })));
             this.interpretedGroupByUuid = new HashMap<>(this.groupsByUuid.size());
+            this.targetEntityIdMap = ImmutableMap.copyOf(targetEntityIdMap);
+        }
+
+        long targetId() {
+            return targetId;
         }
 
         private String printForLog(@Nonnull final GroupDTO group) {
@@ -824,6 +784,11 @@ class DiscoveredGroupInterpreter {
         @Nonnull
         Collection<InterpretedGroup> interpretedGroups() {
             return interpretedGroupByUuid.values();
+        }
+
+        @Nonnull
+        Map<String, Long> targetEntityidMap() {
+            return targetEntityIdMap;
         }
 
         /**
