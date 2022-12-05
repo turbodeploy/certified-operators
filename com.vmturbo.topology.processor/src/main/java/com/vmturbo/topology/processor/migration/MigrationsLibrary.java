@@ -7,12 +7,14 @@ import javax.annotation.Nonnull;
 
 import org.jooq.DSLContext;
 
+import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.ImmutableSortedMap;
 
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceBlockingStub;
 import com.vmturbo.components.common.migration.Migration;
 import com.vmturbo.identity.store.IdentityStore;
 import com.vmturbo.kvstore.KeyValueStore;
+import com.vmturbo.platform.sdk.common.util.SDKProbeType;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO.TargetSpec;
 import com.vmturbo.topology.processor.identity.IdentityProvider;
 import com.vmturbo.topology.processor.identity.services.IdentityServiceUnderlyingStore;
@@ -129,7 +131,9 @@ public class MigrationsLibrary {
             .put("V_01_01_21__MysqlProbes_Remove_Vm_Metrics_Flag",
                 new V_01_01_21__MysqlProbes_Remove_Vm_Metrics_Flag(targetStore, probeStore))
             .put("V_01_01_22__MssqlProbes_Remove_Vm_Metrics_Flag",
-                new V_01_01_22__MssqlProbes_Remove_Vm_Metrics_Flag(targetStore, probeStore));
+                new V_01_01_22__MssqlProbes_Remove_Vm_Metrics_Flag(targetStore, probeStore))
+            .put("V_01_01_23__Vcenter_Enable_Guest_Metrics_Flag",
+                new V_01_01_23__Vcenter_Enable_Guest_Metrics_Flag(keyValueStore, ImmutableSet.of(SDKProbeType.VCENTER)));
         return builder.build();
     }
 }
