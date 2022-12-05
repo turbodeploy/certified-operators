@@ -186,6 +186,17 @@ message TypeSpecificInfo {
 
         // The mark that shows whether the VM belongs to an Azure VDI instance or not.
         optional bool is_vdi = 19 [default = false];
+
+        // starts powervm specific properties
+        // gives whether the vm is a dedicated vm
+        optional bool hasDedicatedProcessors = 20;
+
+        // which version of Power the vm supports
+        optional string processorCompatibilityMode = 21;
+
+        // if vm is a shared vm, gives whether vm is capped or uncapped
+        optional string sharingMode = 22;
+        // ends powervm specific properties
     }
 
     // Properties unique to a PhysicalMachine in the model
@@ -225,6 +236,10 @@ message TypeSpecificInfo {
 
         // The total number of CPU threads on the host.
         optional int32 num_cpu_threads = 12;
+
+        // PowerVM modes supported by this host
+        optional string processorCompatibilityModes = 13;
+
     }
 
     message BusinessAccountInfo {

@@ -45,6 +45,10 @@ public class VirtualMachineInfoMapper extends TypeSpecificInfoMapper {
 
     private static final Map<String, OS> OS_BY_NAME = Collections.synchronizedMap(new HashMap<>());
 
+    private static final String HAS_DEDICATED_PU = "hasDedicatedProcessors";
+    private static final String PROCESSOR_COMPAT_MODE = "processorCompatMode";
+    private static final String SHARING_MODE = "sharingMode";
+
     @Override
     public TypeSpecificInfo mapEntityDtoToTypeSpecificInfo(EntityDTOOrBuilder sdkEntity,
             Map<String, String> entityPropertyMap) {
@@ -162,6 +166,17 @@ public class VirtualMachineInfoMapper extends TypeSpecificInfoMapper {
         if (StringUtils.isNotEmpty(isVdi)) {
             vmInfo.setIsVdi(Boolean.parseBoolean(isVdi));
         }
+        if (entityPropertyMap.containsKey(HAS_DEDICATED_PU)) {
+            vmInfo.setHasDedicatedProcessors(
+                    Boolean.parseBoolean(entityPropertyMap.get(HAS_DEDICATED_PU)));
+        }
+        if (entityPropertyMap.containsKey(PROCESSOR_COMPAT_MODE)) {
+            vmInfo.setProcessorCompatibilityMode(entityPropertyMap.get(PROCESSOR_COMPAT_MODE));
+        }
+        if (entityPropertyMap.containsKey(SHARING_MODE)) {
+            vmInfo.setSharingMode(entityPropertyMap.get(SHARING_MODE));
+        }
+
         return TypeSpecificInfo.newBuilder().setVirtualMachine(vmInfo.build()).build();
     }
 

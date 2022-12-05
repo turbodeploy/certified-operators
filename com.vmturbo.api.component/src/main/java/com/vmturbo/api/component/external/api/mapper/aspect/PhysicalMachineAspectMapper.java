@@ -54,6 +54,12 @@ public class PhysicalMachineAspectMapper extends AbstractAspectMapper {
 
     private final RepositoryApi repositoryApi;
 
+    private static final String TOTAL_PHYSICAL_PU = "totalInstalledPhysicalProcessorUnits";
+    private static final String LATEST_SUPPORTED_PROCESSOR_GEN = "latestSupportedProcessorGeneration";
+    private static final String TOTAL_PHYSICAL_MEM = "totalInstalledPhysicalMemory";
+    private static final String LOGICAL_MEM_BLOCK_SIZE = "logicalMemoryBlockSize";
+    private static final String SERIAL_NUMBER = "serialNumber";
+
     public PhysicalMachineAspectMapper(final RepositoryApi repositoryApi) {
         this.repositoryApi = repositoryApi;
     }
@@ -78,6 +84,7 @@ public class PhysicalMachineAspectMapper extends AbstractAspectMapper {
         }
 
         final TypeSpecificInfo typeInfo = entity.getTypeSpecificInfo();
+        final Map<String, String> entityPropertyMap = entity.getEntityPropertyMapMap();
 
         // Convert disk groups for vSAN host
         try {
@@ -112,6 +119,32 @@ public class PhysicalMachineAspectMapper extends AbstractAspectMapper {
             if (physicalMachineInfo.hasMigrationLevel()) {
                 aspect.setMigrationLevel(physicalMachineInfo.getMigrationLevel());
             }
+
+            if (physicalMachineInfo.hasProcessorCompatibilityModes()) {
+                aspect.setSupportedProcessorCompatibilityModes(physicalMachineInfo
+                        .getProcessorCompatibilityModes());
+            }
+            if (physicalMachineInfo.hasModel()) {
+                aspect.setMachineTypeAndModel(physicalMachineInfo.getModel());
+            }
+        }
+        if (entityPropertyMap.containsKey(TOTAL_PHYSICAL_PU)) {
+            aspect.setTotalInstalledPhysicalProcessorUnits(
+                    Integer.valueOf(entityPropertyMap.get(TOTAL_PHYSICAL_PU)));
+        }
+        if (entityPropertyMap.containsKey(LATEST_SUPPORTED_PROCESSOR_GEN)) {
+            aspect.setLatestSupportedProcessorGeneration(entityPropertyMap.get(LATEST_SUPPORTED_PROCESSOR_GEN));
+        }
+        if (entityPropertyMap.containsKey(TOTAL_PHYSICAL_MEM)) {
+            aspect.setTotalInstalledPhysicalMemory(
+                    Integer.valueOf(entityPropertyMap.get(TOTAL_PHYSICAL_MEM)));
+        }
+        if (entityPropertyMap.containsKey(LOGICAL_MEM_BLOCK_SIZE)) {
+            aspect.setLogicalMemoryBlockSize(
+                    Integer.valueOf(entityPropertyMap.get(LOGICAL_MEM_BLOCK_SIZE)));
+        }
+        if (entityPropertyMap.containsKey(SERIAL_NUMBER)) {
+            aspect.setSerialNumber(entityPropertyMap.get(SERIAL_NUMBER));
         }
 
         aspect.setDedicatedFailoverHost(typeInfo.getPhysicalMachine().getDedicatedFailover());
