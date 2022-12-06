@@ -24,6 +24,8 @@ import com.vmturbo.common.protobuf.cost.BilledCostServices.GetBilledCostStatsReq
 import com.vmturbo.common.protobuf.cost.BilledCostServices.GetBilledCostStatsResponse;
 import com.vmturbo.common.protobuf.cost.BilledCostServices.UploadBilledCloudCostRequest;
 import com.vmturbo.common.protobuf.cost.BilledCostServices.UploadBilledCloudCostRequest.BilledCostSegment;
+import com.vmturbo.common.protobuf.cost.BilledCostServices.UploadBilledCloudCostRequest.CostTagsSegment;
+import com.vmturbo.common.protobuf.cost.BilledCostServices.UploadBilledCloudCostRequest.MetadataSegment;
 import com.vmturbo.common.protobuf.cost.BilledCostServices.UploadBilledCloudCostRequest.SegmentCase;
 import com.vmturbo.common.protobuf.cost.BilledCostServices.UploadBilledCloudCostResponse;
 import com.vmturbo.cost.component.billed.cost.CloudCostStore.BilledCostPersistenceSession;
@@ -77,6 +79,15 @@ public class BilledCostRpcService extends BilledCostServiceImplBase {
 
     /**
      * Handler for streamed requests to upload billed cost.
+     * Note: Streamed gRPC requests are received in-order and not concurrently.
+     *
+     * <p>Requests should be made and thus received in this order:
+     *
+     * <p>1. Exactly one {@link MetadataSegment}
+     * 3. One or more {@link CostTagsSegment}
+     * 3. One or more {@link BilledCostSegment}
+     *
+     * <p>Any segment can be empty if that is representative of the data being uploaded.
      */
     private class UploadBilledCostRequestHandler
             implements StreamObserver<UploadBilledCloudCostRequest> {
@@ -88,6 +99,8 @@ public class BilledCostRpcService extends BilledCostServiceImplBase {
         private final BilledCostPersistenceSession persistenceSession;
 
         private final Set<SegmentCase> segmentsReceived;
+
+        private boolean isInErrorState;
 
         /**
          * Constructor for {@link UploadBilledCostRequestHandler}.
@@ -105,21 +118,30 @@ public class BilledCostRpcService extends BilledCostServiceImplBase {
 
         @Override
         public void onNext(final UploadBilledCloudCostRequest request) {
+            if (isInErrorState) {
+                logger.warn("Upload request handler is in an error state; ignoring onNext notification");
+                return;
+            }
 
-            segmentsReceived.add(request.getSegmentCase());
-
-            switch (request.getSegmentCase()) {
-                case BILLED_COST_METADATA:
-                    handleBilledCostMetadataRequest(request);
-                    break;
-                case COST_TAGS:
-                    handleCostTagsRequest(request);
-                    break;
-                case BILLED_COST:
-                    handleBilledCostRequest(request);
-                    break;
-                default:
-                    break;
+            try {
+                segmentsReceived.add(request.getSegmentCase());
+                switch (request.getSegmentCase()) {
+                    case BILLED_COST_METADATA:
+                        handleBilledCostMetadataRequest(request);
+                        break;
+                    case COST_TAGS:
+                        handleCostTagsRequest(request);
+                        break;
+                    case BILLED_COST:
+                        handleBilledCostRequest(request);
+                        break;
+                    default:
+                        break;
+                }
+            } catch (final Exception e) {
+                logger.error("Error handling billed cost upload request: ", e);
+                isInErrorState = true;
+                responseObserver.onError(Status.INTERNAL.withDescription(e.getMessage()).asException());
             }
         }
 
@@ -135,29 +157,20 @@ public class BilledCostRpcService extends BilledCostServiceImplBase {
         }
 
         private void handleBilledCostRequest(final UploadBilledCloudCostRequest request) {
-            if (!segmentsReceived.contains(SegmentCase.COST_TAGS) || !segmentsReceived.contains(
-                    SegmentCase.BILLED_COST_METADATA)) {
-                responseObserver.onError(Status.INTERNAL.withDescription(
-                                "Billed cost buckets received before metadata or cost tag groups")
-                        .asException());
-                return;
-            } else if (!allReferencedTagGroupsExist(request.getBilledCost())) {
-                responseObserver.onError(Status.INTERNAL.withDescription(
-                                "Billed cost buckets refer to tag groups which have not been received")
-                        .asException());
-                return;
-            }
+
+            Preconditions.checkArgument(segmentsReceived.contains(SegmentCase.BILLED_COST_METADATA),
+                    "Billed cost buckets received before metadata");
+            Preconditions.checkArgument(segmentsReceived.contains(SegmentCase.COST_TAGS),
+                    "Billed cost buckets received before cost tags");
+            Preconditions.checkArgument(allReferencedTagGroupsExist(request.getBilledCost()),
+                    "Billed cost buckets refer to tag groups which have not been received");
 
             // Persist cost buckets as they are received
             // Note: yes, including tag groups and metadata every time is redundant,
             // but there is a tags cache
-            try {
-                persistenceSession.storeCostDataAsync(billedCostData.clearCostBuckets()
-                        .addAllCostBuckets(request.getBilledCost().getCostBucketsList())
-                        .build());
-            } catch (final Exception exception) {
-                responseObserver.onError(Status.INTERNAL.withCause(exception).asException());
-            }
+            persistenceSession.storeCostDataAsync(billedCostData.clearCostBuckets()
+                    .addAllCostBuckets(request.getBilledCost().getCostBucketsList())
+                    .build());
         }
 
         private boolean allReferencedTagGroupsExist(final BilledCostSegment billedCostSegment) {
@@ -177,6 +190,11 @@ public class BilledCostRpcService extends BilledCostServiceImplBase {
 
         @Override
         public void onCompleted() {
+            if (isInErrorState) {
+                logger.warn("Upload request handler is in an error state; ignoring onCompleted notification");
+                return;
+            }
+
             try {
                 // Wait on any pending persistence operations to wrap up
                 persistenceSession.commitSession();
@@ -184,9 +202,10 @@ public class BilledCostRpcService extends BilledCostServiceImplBase {
                 // Complete the request
                 responseObserver.onNext(UploadBilledCloudCostResponse.getDefaultInstance());
                 responseObserver.onCompleted();
-            } catch (final Exception exception) {
-                logger.error("Error persisting uploaded billed cost data: ", exception);
-                responseObserver.onError(Status.INTERNAL.withCause(exception).asException());
+            } catch (final Exception e) {
+                logger.error("Error persisting uploaded billed cost data: ", e);
+                isInErrorState = true;
+                responseObserver.onError(Status.INTERNAL.withDescription(e.getMessage()).asException());
             }
         }
     }
