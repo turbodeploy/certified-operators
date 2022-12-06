@@ -76,6 +76,10 @@ if [ "$HYDRA_PUBLIC" == "" ]; then
     export HYDRA_PUBLIC='hydra-public.turbonomic.svc.cluster.local'
 fi
 
+if [ "$CLIENT_NETWORK" == "" ]; then
+    export CLIENT_NETWORK='client-network.turbonomic.svc.cluster.local'
+fi
+
 # Allow IPv4 and IPv6 formats.
 # Validation checks characters are alphanumeric : / . for specifying ip.
 if [ "$WHITE_LIST_IPS" != "" ]; then
@@ -106,7 +110,7 @@ fi
 ENV_VARS=(
     '${API}' '${UI}' '${GRAFANA}' '${TOPOLOGY}' '${DNS_RESOLVER}' '${WORKER_PROCESSES}'
     '${WORKER_CONNECTIONS}' '${SSL_PROTOCOLS}' '${SSL_CIPHERS}' '${DISABLE_HTTPS_REDIRECT}'
-    '${BLOCK_REMOTE_PROBES}' '${WHITE_LIST_IPS}' '${AUTH}' '${HYDRA_PUBLIC}'
+    '${BLOCK_REMOTE_PROBES}' '${WHITE_LIST_IPS}' '${AUTH}' '${HYDRA_PUBLIC}' '${CLIENT_NETWORK}'
     '${ENABLE_PROBE_AUTH}' '${ENABLE_MANDATORY_PROBE_AUTH}'
 )
 mkdir -p /tmp/nginx/includes
