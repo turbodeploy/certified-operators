@@ -3,6 +3,9 @@ T8C-Operator Changelog
 
 Operator Versions
 ---------------------
+42.20
+1. Fixed a bug where log messages would get lost in a Turbo Secure Connect environment
+
 42.19
 1. Added the AWS Kinesis connector to the helm charts
 2. Add new telemetry gauge: turbo_automated_entities
