@@ -1998,4 +1998,61 @@ public class CalculatorTest {
                 getTimestamp(date(2022, 5, 31)), date(2022, 6, 4));
         validateResults(result, expectedResults);
     }
+
+    /**
+     * Scale volume by changing storage amount, IOPS and IO Throughput. (AWS GP3)
+     * This volume originally has storage of 14GB, IOPS of 4000 and IO Throughput of 150MBPS.
+     *
+     * <p>Action 1: June 1 10am: Change disk commodities: IOPS 4000 to 3000; IO_Throughput 200MBps to 125MBps.
+     */
+    @Test
+    public void testAwsGp3ScaleDown() {
+        when(storagePriceStructure.getEndRangeInFreePriceTier(anyLong(), anyLong(), anyLong(), anyInt()))
+                .thenAnswer(invocation -> {
+                    int commType = invocation.getArgumentAt(3, Integer.class);
+                    if (commType == CommodityType.IO_THROUGHPUT_VALUE) {
+                        return 125;
+                    } else if (commType == CommodityType.STORAGE_ACCESS_VALUE) {
+                        return 3000;
+                    }
+                    return 0;
+                });
+        final long tierA = 1212121212L;
+        final double storageAccessRate = 0.000068;
+        final double ioThroughputRate = 0.00047;
+        final double storageAmountRate = 0.000163159;
+        Set<BillingRecord> records = new HashSet<>();
+        // Subtract the usage amount by a small value to simulate the case where the bill shows a smaller than expected usage amount.
+        // It is normal because there action time and the actual record of AWS can differ.
+        // This simulation was added because a problem related to this use case was fixed.
+        double delta = 2;
+        records.add(createVolumeBillRecord(date(2022, 6, 1), 1000 * 10 + 0 * 14 - delta, (1000 * 10 + 0 * 14 - delta) * storageAccessRate, tierA, CommodityType.STORAGE_ACCESS_VALUE));
+        records.add(createVolumeBillRecord(date(2022, 6, 1), 75 * 10 + 0 * 14 - delta, (75 * 10 + 0 * 14 - delta) * ioThroughputRate, tierA, CommodityType.IO_THROUGHPUT_VALUE));
+        records.add(createVolumeBillRecord(date(2022, 6, 1), 14 * 24, (14 * 24) * storageAmountRate, tierA, CommodityType.STORAGE_AMOUNT_VALUE));
+        records.add(createVolumeBillRecord(date(2022, 6, 2), 0 * 24, (0 * 24) * storageAccessRate, tierA, CommodityType.STORAGE_ACCESS_VALUE));
+        records.add(createVolumeBillRecord(date(2022, 6, 2), 0 * 24, (0 * 24) * ioThroughputRate, tierA, CommodityType.IO_THROUGHPUT_VALUE));
+        records.add(createVolumeBillRecord(date(2022, 6, 2), 14 * 24, (14 * 24) * storageAmountRate, tierA, CommodityType.STORAGE_AMOUNT_VALUE));
+
+        List<ResizeInfo> resizeInfoList = new ArrayList<>();
+        resizeInfoList.add(ScenarioGenerator.createResizeInfo(CommodityType.STORAGE_ACCESS, 4000, 3000));
+        resizeInfoList.add(ScenarioGenerator.createResizeInfo(CommodityType.IO_THROUGHPUT, 200 * 1024, 125 * 1024));
+        double sourceOnDemandRate = (1000 * storageAccessRate + 75 * ioThroughputRate + 14 * storageAmountRate); // cost per hour
+        double destOnDemandRate = (0 * storageAccessRate + 0 * ioThroughputRate + 14 * storageAmountRate); // cost per hour
+        NavigableSet<ExecutedActionsChangeWindow> actionSpecs = new TreeSet<>(changeWindowComparator);
+        actionSpecs.add(ScenarioGenerator.createVolumeActionChangeWindow(volumeOid,
+                LocalDateTime.of(2022, 6, 1, 10, 0),
+                sourceOnDemandRate, destOnDemandRate, tierA, tierA,
+                null, LivenessState.LIVE, resizeInfoList));
+
+        double day1Savings = sourceOnDemandRate * 14 - destOnDemandRate * 14;
+        double day2Savings = sourceOnDemandRate * 24 - destOnDemandRate * 24;
+        List<SavingsValues> expectedResults = new ArrayList<>();
+        expectedResults.add(new SavingsValues.Builder().entityOid(volumeOid).savings(day1Savings).investments(0)
+                .timestamp(date(2022, 6, 1)).build());
+        expectedResults.add(new SavingsValues.Builder().entityOid(volumeOid).savings(day2Savings).investments(0)
+                .timestamp(date(2022, 6, 2)).build());
+        List<SavingsValues> result = calculator.calculate(volumeOid, records, actionSpecs,
+                getTimestamp(date(2022, 5, 31)), date(2022, 6, 4));
+        validateResults(result, expectedResults);
+    }
 }
