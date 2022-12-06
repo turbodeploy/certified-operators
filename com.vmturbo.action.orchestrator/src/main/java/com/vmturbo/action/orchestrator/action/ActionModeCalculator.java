@@ -611,7 +611,9 @@ public class ActionModeCalculator {
             final Integer commType = resizeAction.getCommodityType().getType();
 
             boolean supportsHotReplace = entity.getCommTypesWithHotReplaceList().stream()
-                    .anyMatch(type -> type.equals(commType));
+                    .anyMatch(type -> type.equals(commType))
+                    //If a VM's cores per socket ratio is changed, it is never hot replace.
+                    && !(resizeAction.hasNewCpsr() && resizeAction.hasOldCpsr() && resizeAction.getNewCpsr() != resizeAction.getOldCpsr());
 
             // Check applicable commodities.
             if (ActionDTOUtil.NON_DISRUPTIVE_SETTING_COMMODITIES.contains(commType)

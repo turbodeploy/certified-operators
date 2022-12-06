@@ -931,6 +931,26 @@ public class ActionModeCalculatorTest {
     }
 
     /**
+     * Test: VCPU Resize with new CPSR.
+     * In range mode: Recommended.
+     * Hot Add : True.
+     * Conditions: Non Disruptive Mode: True.
+     * User Setting Mode: Manual.
+     * Final Output mode: Recommended.
+     */
+    @Test
+    public void testResizeCPSRWithHotAddNonDisruptive() {
+        boolean hotAddSupported = true;
+        boolean nonDisruptiveSetting = true;
+        final Map<String, Setting> settingsForEntity = getSettingsForVM(nonDisruptiveSetting, com.vmturbo.api.enums.ActionMode.MANUAL);
+        when(entitiesCache.getSettingsForEntity(VM_ID)).thenReturn(settingsForEntity);
+        when(entitiesCache.getEntityFromOid(VM_ID)).thenReturn(Optional.of(getVMEntity(VM_ID, hotAddSupported)));
+        Action resizeUpAction = getResizeUpAction(VM_ID, true, true);
+        assertThat(actionModeCalculator.calculateActionModeAndExecutionSchedule(resizeUpAction, entitiesCache),
+                is(ModeAndSchedule.of(ActionMode.RECOMMEND)));
+    }
+
+    /**
      * Test: Memory Resize Up.
      * In range mode: Manual.
      * Hot Add : False.
@@ -1427,14 +1447,18 @@ public class ActionModeCalculatorTest {
     }
 
     private Action getResizeUpAction(long vmId, boolean executable) {
-        return this.getResizeUpAction(vmId, SupportLevel.SUPPORTED, executable);
+        return this.getResizeUpAction(vmId, SupportLevel.SUPPORTED, executable, false);
+    }
+
+    private Action getResizeUpAction(long vmId, boolean executable, boolean hasNewCpsr) {
+        return this.getResizeUpAction(vmId, SupportLevel.SUPPORTED, executable, hasNewCpsr);
     }
 
     private Action getResizeUpAction(long vmId, SupportLevel supportLevel) {
-        return this.getResizeUpAction(vmId, supportLevel, true);
+        return this.getResizeUpAction(vmId, supportLevel, true, false);
     }
 
-    private Action getResizeUpAction(long vmId, SupportLevel supportLevel, boolean executable) {
+    private Action getResizeUpAction(long vmId, SupportLevel supportLevel, boolean executable, boolean hasNewCpsr) {
         final ActionDTO.Action.Builder actionBuilder = ActionDTO.Action.newBuilder()
             .setId(ACTION_OID)
             .setSupportingLevel(supportLevel)
@@ -1444,16 +1468,21 @@ public class ActionModeCalculatorTest {
                     .setDeprecatedEndUtilization(50)
                     .build()))
             .setDeprecatedImportance(0);
-        final ActionDTO.Action recommendation = actionBuilder
-            .setInfo(ActionInfo.newBuilder()
-                .setResize(Resize.newBuilder()
-                    .setTarget(ActionEntity.newBuilder()
+        Resize.Builder  resize = Resize.newBuilder()
+                .setTarget(ActionEntity.newBuilder()
                         .setId(vmId)
                         .setType(EntityType.VIRTUAL_MACHINE_VALUE))
-                    .setCommodityAttribute(CommodityAttribute.CAPACITY)
-                    .setCommodityType(CommodityType.newBuilder().setType(CommodityDTO.CommodityType.VCPU_VALUE))
-                    .setOldCapacity(2)
-                    .setNewCapacity(4)))
+                .setCommodityAttribute(CommodityAttribute.CAPACITY)
+                .setCommodityType(CommodityType.newBuilder().setType(CommodityDTO.CommodityType.VCPU_VALUE))
+                .setOldCapacity(2)
+                .setNewCapacity(4);
+        if (hasNewCpsr) {
+            resize.setNewCpsr(2);
+            resize.setOldCpsr(4);
+        }
+        final ActionDTO.Action recommendation = actionBuilder
+            .setInfo(ActionInfo.newBuilder()
+                .setResize(resize))
                 .setExecutable(executable)
                 .build();
         Action action = new Action(recommendation, 1L, actionModeCalculator, 2244L);
