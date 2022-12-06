@@ -9,22 +9,39 @@ LABEL name="db" \
       summary="db" \
       description="Turbonomic Workload Automation for Multicloud simultaneously optimizes performance, compliance, and cost in real-time. Workloads are precisely resourced, automatically, to perform while satisfying business constraints."
 
+# ARG TARGETPLATFORM
+
 # Required Licenses
 COPY licenses /licenses
 
 RUN groupadd -g 101 mysql && useradd -r -g 101 -s /bin/bash -u 101 mysql
 
 ENV VERSION=10.5.16
-ENV BOOST_URL=http://10.10.150.66/repository/xl/boost-program-options-1.66.0-14.fc29.x86_64.rpm
 
-RUN echo "[mariadb]" > /etc/yum.repos.d/MariaDB.repo && \
+# Unfortunately, our build system was built before BuildKit was available.
+# Additionally, we use spotify's docker-maven-plugin for triggering the docker builds.
+# Support for this plugin was dropped before BuildKit was available.
+# For now we use a solution that's good enough for a developer to get stuff running on their laptop.
+# When we want to support multi-architecture builds, we will need to migrate to a different maven
+# plugin in OM-93669.
+RUN case $(uname -m) in \
+      "aarch64")  \
+        # TODO: if we do this, we must mirror it.
+        BOOST_URL="https://archives.fedoraproject.org/pub/archive/fedora/linux/releases/29/Everything/aarch64/os/Packages/b/boost-program-options-1.66.0-14.fc29.aarch64.rpm" \
+        MARIA_DB_ARCH=aarch64  \
+        RHEL_ARCH=aarch64 ;; \
+      *) \
+        BOOST_URL="http://10.10.150.66/repository/xl/boost-program-options-1.66.0-14.fc29.x86_64.rpm" \
+        MARIA_DB_ARCH=amd64  \
+        RHEL_ARCH=x86_64 ;; \
+    esac && \
+    echo "[mariadb]" > /etc/yum.repos.d/MariaDB.repo && \
     echo "name = MariaDB-${VERSION}" >> /etc/yum.repos.d/MariaDB.repo && \
-    #echo "baseurl = https://yum.mariadb.org/${VERSION}/rhel8-amd64/" >> /etc/yum.repos.d/MariaDB.repo && \
-    echo "baseurl = https://archive.mariadb.org/mariadb-${VERSION}/yum/rhel8-amd64/" >> /etc/yum.repos.d/MariaDB.repo && \
+    echo "baseurl = https://archive.mariadb.org/mariadb-${VERSION}/yum/rhel8-${MARIA_DB_ARCH}/" >> /etc/yum.repos.d/MariaDB.repo && \
     echo "gpgkey=https://yum.mariadb.org/RPM-GPG-KEY-MariaDB" >> /etc/yum.repos.d/MariaDB.repo && \
     echo "gpgcheck=1" >> /etc/yum.repos.d/MariaDB.repo && \
     dnf install -y ${BOOST_URL} && \
-    dnf install -y --setopt=tsflags=nodocs --disablerepo "rhel-8-for-x86_64-appstream-rpms" rsyslog hostname procps-ng MariaDB-server net-tools gnutls && \
+    dnf install -y --setopt=tsflags=nodocs --disablerepo "rhel-8-for-${RHEL_ARCH}-appstream-rpms" rsyslog hostname procps-ng MariaDB-server net-tools gnutls && \
     dnf update -y krb5-libs \
     dnf clean all && \
     rm -rf /var/cache/dnf
