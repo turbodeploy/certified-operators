@@ -1,14 +1,10 @@
 package com.vmturbo.cost.component.reserved.instance;
 
 import static com.vmturbo.cost.component.db.Tables.ENTITY_TO_RESERVED_INSTANCE_MAPPING;
-import static com.vmturbo.cost.component.db.Tables.HIST_ENTITY_RESERVED_INSTANCE_MAPPING;
 import static org.jooq.impl.DSL.sum;
 
-import java.time.Instant;
 import java.time.LocalDateTime;
-import java.time.ZoneId;
 import java.time.ZoneOffset;
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -19,7 +15,6 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
-import com.google.common.collect.HashBasedTable;
 import com.google.common.collect.ImmutableTable;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Table;
@@ -32,7 +27,6 @@ import org.jooq.Condition;
 import org.jooq.DSLContext;
 import org.jooq.InsertSetMoreStep;
 import org.jooq.Record2;
-import org.jooq.UpdatableRecord;
 import org.jooq.impl.DSL;
 import org.jooq.impl.TableImpl;
 import org.stringtemplate.v4.ST;
@@ -46,7 +40,6 @@ import com.vmturbo.cost.component.db.Tables;
 import com.vmturbo.cost.component.db.enums.EntityToReservedInstanceMappingRiSourceCoverage;
 import com.vmturbo.cost.component.db.tables.pojos.EntityToReservedInstanceMapping;
 import com.vmturbo.cost.component.db.tables.records.EntityToReservedInstanceMappingRecord;
-import com.vmturbo.cost.component.db.tables.records.HistEntityReservedInstanceMappingRecord;
 import com.vmturbo.cost.component.reserved.instance.filter.EntityReservedInstanceMappingFilter;
 
 /**
@@ -121,93 +114,6 @@ public class EntityReservedInstanceMappingStore implements
                 entitiesChunk -> context.batch(entitiesChunk).execute());
         logger.info("SE-RI-Mapping: Count of deleted records: {}, updated: {}",
                 countDel, records.size());
-    }
-
-    /**
-     * Inserts RI coverage records into historical Entity RI Coverage mapping table.
-     *
-     * @param context {@link DSLContext} transactional context (configured by client).
-     * @param seRIHistCoverageList list of protobuf structures (one structure per SE) with a summary
-     *        of RI coverage per SE.
-     */
-    public void updateHistEntityRICoverageMappings(@Nonnull final DSLContext context,
-            @Nonnull final List<EntityRICoverageUpload> seRIHistCoverageList) {
-        final List<UpdatableRecord<?>> records = new ArrayList<>();
-
-        final LocalDateTime currentTime = LocalDateTime.now(ZoneOffset.UTC);
-        for (EntityRICoverageUpload seRIUpload : seRIHistCoverageList) {
-            final Long entityOid = seRIUpload.getEntityId();
-            final List<EntityRICoverageUpload.Coverage> riCoverageList = seRIUpload.getCoverageList();
-
-            // Table of covered coupons per entity/RI pair _combined_ by coverage source (i.e supplemental + billing)
-            final Table<Long, Long, Double> riCombinedCoupons = HashBasedTable.create();
-            // Start and end usage tables (per entity/RI pair)
-            final Table<Long, Long, Long> riStartTime = HashBasedTable.create();
-            final Table<Long, Long, Long> riEndTime = HashBasedTable.create();
-            for (EntityRICoverageUpload.Coverage riCov : riCoverageList) {
-                // Do not consider those coverage upload records which do not have a time stamp set.
-                // Example use case - When entity coverage uploads are not yet uploaded during start
-                // up and the cache is initialized by the records from the entity RI mapping table.
-                if (!riCov.hasUsageStartTimestamp() || !riCov.hasUsageEndTimestamp()) {
-                    logger.warn("Usage timestamps not set in the coverage upload record for entity {}"
-                                    + ", RI {}, Source {}. Ignoring record for the historical table upload.",
-                                    entityOid, riCov.getReservedInstanceId(), riCov.getRiCoverageSource());
-                    continue;
-                }
-                Long riId = riCov.getReservedInstanceId();
-                Double coveredCoupons = riCombinedCoupons.get(entityOid, riId);
-                if (coveredCoupons != null) {
-                    coveredCoupons += riCov.getCoveredCoupons();
-                    riCombinedCoupons.put(entityOid, riId, coveredCoupons);
-                } else {
-                    riCombinedCoupons.put(entityOid, riId, riCov.getCoveredCoupons());
-                }
-                riStartTime.put(entityOid, riId, riCov.getUsageStartTimestamp());
-                riEndTime.put(entityOid, riId, riCov.getUsageEndTimestamp());
-            }
-
-            for (Table.Cell<Long, Long, Double> cell : riCombinedCoupons.cellSet()) {
-                final Long reservedInstanceId = cell.getColumnKey();
-                long usageStartTime = riStartTime.get(entityOid, reservedInstanceId);
-                final LocalDateTime rawUsageStart = LocalDateTime.ofInstant(
-                        // Add full minute to avoid zero timestamp (i.e '1970-01-01 00:00:00') which is out of range
-                        // for MySQL JDBC driver.
-                        Instant.ofEpochMilli(usageStartTime + 1000 * 60),
-                        ZoneId.from(ZoneOffset.UTC));
-
-                // RI coverage Usage Start time is a PK column and we do not want timestamp with precision of seconds
-                // and nanoseconds to be part of PK value (to avoid inserting potential duplicate rows if API returns
-                // slightly different timestamp next time around).
-                // Seconds and nanoseconds play negligible role in Buy RI analysis and related recommendations.
-                final LocalDateTime usageStart = LocalDateTime.of(rawUsageStart.getYear(),
-                        rawUsageStart.getMonth(), rawUsageStart.getDayOfMonth(),
-                        rawUsageStart.getHour(), rawUsageStart.getMinute());
-
-                // Usage end.
-                long usageEndTime = riEndTime.get(entityOid, reservedInstanceId);
-                final LocalDateTime usageEnd = LocalDateTime.ofInstant(
-                        // Again, add a minute to the usage end time.
-                        Instant.ofEpochMilli(usageEndTime + 1000 * 60),
-                        ZoneId.from(ZoneOffset.UTC));
-                logger.debug("Usage start/end for Entity/RI pair '{}:{}' = [{} .. {}], covered coupons = {}",
-                        entityOid, reservedInstanceId, usageStart.toString(), usageEnd.toString(), cell.getValue());
-
-                records.add(context.newRecord(HIST_ENTITY_RESERVED_INSTANCE_MAPPING,
-                        new HistEntityReservedInstanceMappingRecord(
-                                currentTime,
-                                entityOid,
-                                reservedInstanceId,
-                                usageStart,
-                                usageEnd)));
-            }
-        }
-
-        // Note that we delete only specific historical coverage records.
-        final int[] countDel = context.batchDelete(records).execute();
-        Lists.partition(records, chunkSize).forEach(
-                entitiesChunk -> context.batchInsert(entitiesChunk).execute());
-        logger.info("Hist-SE-RI-Mapping: Count of deleted records: {}, updated: {}",
-                countUpdatedRecords(countDel), records.size());
     }
 
     private int countUpdatedRecords(final int[] rcUpdated) {
@@ -632,84 +538,4 @@ public class EntityReservedInstanceMappingStore implements
         return entityReservedInstanceMappingFile;
     }
 
-    /**
-     * Retrieves RI Coverage records per each SE given in the list argument.
-     * Empty argument list will produce RI Coverage records for all SEs in DB.
-     *
-     * @param entityIDs list of entity IDs for which we are interested to get historical RI coverage data.
-     *
-     * @return Map of SEs to list of RI Coverage data records.
-     */
-    public Map<Long, List<EntityHistRIMappingItem>> getHistEntityRICoverageMappings(final Collection<Long> entityIDs) {
-        Map<Long, List<EntityHistRIMappingItem>> riCoverageMap = new HashMap<>();
-
-        List<HistEntityReservedInstanceMappingRecord> records = dsl.selectFrom(HIST_ENTITY_RESERVED_INSTANCE_MAPPING)
-                .where(filterByOidsCondition(entityIDs)).fetch();
-        for (HistEntityReservedInstanceMappingRecord rec : records) {
-            final Long entityId = rec.getEntityId();
-            final Long riId = rec.getReservedInstanceId();
-            final LocalDateTime usageStart = rec.getStartUsageTime();
-            final LocalDateTime usageEnd = rec.getEndUsageTime();
-
-            List<EntityHistRIMappingItem> riCoverageItems = riCoverageMap.get(entityId);
-            if (riCoverageItems == null) {
-                riCoverageItems = new ArrayList<>();
-                riCoverageMap.put(entityId, riCoverageItems);
-            }
-            riCoverageItems.add(new EntityHistRIMappingItem(entityId, riId, usageStart, usageEnd));
-        }
-
-        return riCoverageMap;
-    }
-
-    /**
-     * Condition to filter the Entity Historical RI Coverage table by the list of entity IDs.
-     *
-     * @param oids The entity IDs.
-     * @return The condition.
-     */
-    private Condition filterByOidsCondition(final Collection<Long> oids) {
-        return oids.isEmpty() ? DSL.trueCondition() : HIST_ENTITY_RESERVED_INSTANCE_MAPPING.ENTITY_ID.in(oids);
-    }
-
-    /**
-     * Class representing item of account RI coverage.
-     */
-    protected class EntityHistRIMappingItem {
-        private final Long entityId;
-        private final Long reservedInstanceId;
-        private final LocalDateTime usageStart;
-        private final LocalDateTime usageEnd;
-
-        public EntityHistRIMappingItem(Long entityId, Long reservedInstanceId, LocalDateTime usageStart,
-                LocalDateTime usageEnd) {
-            super();
-            this.entityId = entityId;
-            this.reservedInstanceId = reservedInstanceId;
-            this.usageStart = usageStart;
-            this.usageEnd = usageEnd;
-        }
-
-        public Long getEntityId() {
-            return entityId;
-        }
-
-        public Long getReservedInstanceId() {
-            return reservedInstanceId;
-        }
-
-        public LocalDateTime getUsageStart() {
-            return usageStart;
-        }
-
-        public LocalDateTime getUsageEnd() {
-            return usageEnd;
-        }
-
-        @Override
-        public String toString() {
-            return "EntityHistRICoverageItem [entityId=" + entityId + ", reservedInstanceId=" + reservedInstanceId
-                    + ", usageStart=" + usageStart + ", usageEnd=" + usageEnd + "]";
-        }
-    }
 }
