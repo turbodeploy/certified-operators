@@ -30,6 +30,9 @@ import com.vmturbo.platform.analysis.updatingfunction.UpdatingFunctionFactory;
  */
 public final class GuaranteedBuyerHelper {
 
+    // double for comparison
+    public static final double EPSILON = 1e-5;
+
     private static final Logger logger = LogManager.getLogger(GuaranteedBuyerHelper.class);
     // Methods
 
@@ -99,9 +102,15 @@ public final class GuaranteedBuyerHelper {
                 for (int boughtIndex = 0; boughtIndex < newBasket.size(); ++boughtIndex) {
                     newSl.setQuantity(boughtIndex, sl.getQuantity(boughtIndex))
                         .setPeakQuantity(boughtIndex, sl.getPeakQuantity(boughtIndex));
-                    newSupplier.getCommoditySold(newBasket.get(boughtIndex))
-                        .setQuantity(newSl.getQuantity(boughtIndex))
-                        .setPeakQuantity(newSl.getPeakQuantity(boughtIndex));
+                    // if the quantity is not updated during suspension. dont update during rollback..
+                    // it is possible that this part of code is not required atall if we can make sure
+                    // the quantity of the commodity sold of host is not updated during suspension.
+                    if (newSl.getQuantity(boughtIndex) > EPSILON) {
+                        newSupplier.getCommoditySold(newBasket.get(boughtIndex))
+                                .setQuantity(newSl.getQuantity(boughtIndex)).setPeakQuantity(
+                                newSl.getPeakQuantity(boughtIndex));
+                    }
+
                 }
             }
         }

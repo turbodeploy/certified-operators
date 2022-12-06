@@ -27,6 +27,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
 import com.vmturbo.commons.analysis.ByProductMap;
+import com.vmturbo.commons.analysis.CommoditiesToIgnoreForProvisionAndSuspensionMap;
 import com.vmturbo.commons.analysis.CommodityResizeDependencyMap;
 import com.vmturbo.commons.analysis.RawMaterialsMap;
 import com.vmturbo.commons.analysis.RawMaterialsMap.RawMaterialInfo;
@@ -201,6 +202,9 @@ public class TopologyEntitiesHandler {
                     populateHistoryBasedResizeDependencyMap(topology);
                 }
                 populateProducesDependencyMap(topology);
+                if (analysisConfig.isEnableOP()) {
+                    populateCommoditiesToIgnoreForProvisionAndSuspensionMap(topology);
+                }
                 populateRawMaterialsMap(topology);
                 populateByProductsMap(topology);
                 commsToAdjustOverheadInClone.forEach(topology::addCommsToAdjustOverhead);
@@ -482,10 +486,24 @@ public class TopologyEntitiesHandler {
      *
      * @param topology where to place the map
      */
+    private static void populateCommoditiesToIgnoreForProvisionAndSuspensionMap(Topology topology) {
+        CommoditiesToIgnoreForProvisionAndSuspensionMap commoditiesToIgnoreForProvisionAndSuspensionMap =
+                new CommoditiesToIgnoreForProvisionAndSuspensionMap();
+        topology.getModifiableCommoditiesToIgnoreForProvisionAndSuspensionMap()
+                .putAll(commoditiesToIgnoreForProvisionAndSuspensionMap
+                        .getCommoditiesToIgnoreForProvisionAndSuspensionMap());
+    }
+
+    /**
+     * Obtain the commodity resize produces-sdependency map from the commons package, convert it and
+     * put it in the topology.
+     *
+     * @param topology where to place the map
+     */
     private static void populateProducesDependencyMap(Topology topology) {
         CommodityResizeDependencyMap.commodityResizeProducesMap.forEach((k, v) -> {
-                topology.addToModifiableCommodityProducesDependencyMap(k, v);
-            }
+                    topology.addToModifiableCommodityProducesDependencyMap(k, v);
+                }
         );
     }
 

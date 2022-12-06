@@ -226,10 +226,16 @@ public class Ledger {
             logger.debug("________________________________________________________________________________");
             logger.debug(seller.getDebugInfoNeverUseInCode());
         }
-        for (CommoditySold commSold : seller.getCommoditiesSold()) {
+        for (int index = 0; index < seller.getCommoditiesSold().size(); index++) {
+            CommoditySold commSold = seller.getCommoditiesSold().get(index);
             if (commSold.getNumConsumers() < 1) {
                 // Skip commodity with no consumers. It should not contribute to the revenue
                 // of the entity.
+                continue;
+            }
+            CommoditySpecification commoditySpecification = seller.getBasketSold().get(index);
+            Set<Integer> commoditiesToIgnore = economy.getCommoditiesToIgnoreForProvisionAndSuspensionEntry(seller.getType());
+            if (commoditiesToIgnore.contains(commoditySpecification.getBaseType())) {
                 continue;
             }
             double commSoldUtil = commSold.getQuantity()/commSold.getEffectiveCapacity();
@@ -237,7 +243,6 @@ public class Ledger {
                 PriceFunction pf = commSold.getSettings().getPriceFunction();
                 double revFromComm = pf.unitPrice(commSoldUtil, null, seller, commSold, economy) * commSoldUtil;
                 if (seller.isDebugEnabled()) {
-                    int index = seller.getCommoditiesSold().indexOf(commSold);
                     logger.debug(seller.getBasketSold().get(index).getDebugInfoNeverUseInCode() + " - util:" +
                                 commSoldUtil + ", price:" + revFromComm + ", MinDP:" +
                                 pf.unitPrice(sellerMinDesUtil, null, seller, commSold, economy) + ", MaxDP:" +

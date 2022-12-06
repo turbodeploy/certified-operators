@@ -72,6 +72,9 @@ public final class Economy implements UnmodifiableEconomy, Serializable {
     // Map of commodity resize dependency calculation by commodity type.
     private final @NonNull HashMap<@NonNull Integer, @NonNull List<@NonNull Integer>>
             commodityProducesDependency_ = new HashMap<>();
+
+    private final @NonNull HashMap<@NonNull Integer, @NonNull Set<@NonNull Integer>>
+            commoditiesToIgnoreForProvisionAndSuspension_ = new HashMap<>();
     // Map of list of commodities that simulation of resize action based on historical value
     // should be skipped by commodity type.
     private final @NonNull Map<@NonNull Integer, @NonNull List<@NonNull Integer>>
@@ -186,6 +189,12 @@ public final class Economy implements UnmodifiableEconomy, Serializable {
         commodityProducesDependency_.put(key, value);
     }
 
+    @Pure
+    public void addToModifiableCommoditiesToIgnoreForProvisionAndSuspensionMap(@NonNull Integer key,
+            @NonNull Set<@NonNull Integer> value) {
+        commoditiesToIgnoreForProvisionAndSuspension_.put(key, value);
+    }
+
     /**
     *
     * @return A modifiable map from commodity sold to the dependent commodities bought
@@ -202,6 +211,12 @@ public final class Economy implements UnmodifiableEconomy, Serializable {
     public @NonNull Map<@NonNull Integer, RawMaterials>
                                               getModifiableRawCommodityMap() {
         return rawMaterialMap_;
+    }
+
+    @Pure
+    public @NonNull Map<Integer, Set<Integer>>
+    getModifiableCommoditiesToIgnoreForProvisionAndSuspensionMap() {
+        return commoditiesToIgnoreForProvisionAndSuspension_;
     }
 
     @Pure
@@ -385,6 +400,13 @@ public final class Economy implements UnmodifiableEconomy, Serializable {
                     getResizeProducesDependencyEntry(@ReadOnly Economy this, int processedCommodityType) {
         return commodityProducesDependency_.get(processedCommodityType);
     }
+
+    @Pure
+    public @NonNull @ReadOnly Set<Integer>
+    getCommoditiesToIgnoreForProvisionAndSuspensionEntry(@ReadOnly Economy this, int processedCommodityType) {
+        return commoditiesToIgnoreForProvisionAndSuspension_.getOrDefault(processedCommodityType, new HashSet<>());
+    }
+
 
     /**
      * Get the list of dependent commodity types for which the simulation of change
@@ -940,6 +962,8 @@ public final class Economy implements UnmodifiableEconomy, Serializable {
         clone.getModifiableCommodityResizeDependencyMap()
                 .putAll(getModifiableCommodityResizeDependencyMap());
         clone.populateMarketsWithSellersAndMergeConsumerCoverage();
+        clone.getModifiableCommoditiesToIgnoreForProvisionAndSuspensionMap().putAll(
+                getModifiableCommoditiesToIgnoreForProvisionAndSuspensionMap());
         simulationEconomy = clone;
         return clone;
     }

@@ -10,7 +10,6 @@ import java.util.Map;
 import com.google.common.collect.BiMap;
 import com.google.common.collect.HashBiMap;
 
-import org.jooq.DSLContext;
 import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -42,12 +41,12 @@ public class EconomyCachesOPTest {
     private static final int PM_TYPE = EntityType.PHYSICAL_MACHINE_VALUE;
     private static final int CLUSTER_TYPE = EntityType.CLUSTER_VALUE;
     private static final int MEM_PROVISIONED_COMM_SPEC = 10;
-    private static final int MEM_PROVISIONED_KEY_COMM_SPEC = 300;
     private static final int CLUSTER1_COMM_SPEC_TYPE = 301;
     private static final String cluster1Key = "cluster1";
     private static final int CLUSTER2_COMM_SPEC_TYPE = 302;
     private static final String cluster2Key = "cluster2";
     private static final int SEG_COMM_SPEC_TYPE = 303;
+    private static final int ACCESS_COMM_SPEC_TYPE_WITH_KEY = 403;
     private static final String segKey = "Segment";
     private static final double pmMemCapacity = 100;
     private static final long pm1Oid = 1111L;
@@ -71,9 +70,9 @@ public class EconomyCachesOPTest {
                 .setType(CommodityType.MEM_PROVISIONED_VALUE)
                 .build(), MEM_PROVISIONED_COMM_SPEC);
         commTypeToSpecMap.put(TopologyDTO.CommodityType.newBuilder()
-                .setType(CommodityType.MEM_PROVISIONED_VALUE)
-                .setKey(StringConstants.CLUSTER_KEY_STATIC)
-                .build(), MEM_PROVISIONED_KEY_COMM_SPEC);
+                .setType(CommodityType.ACCESS_VALUE)
+                .setKey(StringConstants.FAKE_CLUSTER_ACCESS_COMMODITY_KEY)
+                .build(), ACCESS_COMM_SPEC_TYPE_WITH_KEY);
         commTypeToSpecMap.put(TopologyDTO.CommodityType.newBuilder().setType(
                 CommodityType.CLUSTER_VALUE).setKey(cluster1Key).build(), CLUSTER1_COMM_SPEC_TYPE);
         commTypeToSpecMap.put(TopologyDTO.CommodityType.newBuilder().setType(
@@ -114,8 +113,9 @@ public class EconomyCachesOPTest {
             double pm3MemUsed, double pm4MemUsed, double pm5MemUsed, double pm6MemUsed,
             boolean pm1Avialable, boolean pm2Avialable, boolean pm3Avialable, boolean pm4Avialable,
             boolean pm5Avialable, boolean pm6Avialable, Long host, Long cluster) {
-        final DSLContext dsl = Mockito.mock(DSLContext.class);
-        EconomyCaches economyCaches = Mockito.spy(new EconomyCaches(Mockito.spy(new EconomyCachePersistence(dsl))));
+        EconomyCachePersistence economyCachePersistenceSpy = Mockito.mock(
+                EconomyCachePersistence.class);
+        EconomyCaches economyCaches = Mockito.spy(new EconomyCaches(economyCachePersistenceSpy));
         IdentityGenerator.initPrefix(0);
         long buyerOid = 1234L;
         long pmSlOid = 1000L;
@@ -198,7 +198,8 @@ public class EconomyCachesOPTest {
     protected static Trader createCluster(Economy economy, List<Long> cliques, String clusterName,
             long clusterOid, double usedValue) {
         Basket basketSoldByCluster = new Basket(
-                Arrays.asList(new CommoditySpecification(MEM_PROVISIONED_KEY_COMM_SPEC)));
+                Arrays.asList(new CommoditySpecification(MEM_PROVISIONED_COMM_SPEC),
+                        new CommoditySpecification(ACCESS_COMM_SPEC_TYPE_WITH_KEY)));
         Trader cl = economy.addTrader(CLUSTER_TYPE, TraderState.ACTIVE, basketSoldByCluster,
                 cliques);
         cl.setDebugInfoNeverUseInCode(clusterName);
@@ -211,6 +212,13 @@ public class EconomyCachesOPTest {
         commSold.setPeakQuantity(usedValue);
         commSold.getSettings().setPriceFunction(
                 PriceFunctionFactory.createStandardWeightedPriceFunction(1.0));
+
+        CommoditySold segComm = cl.getCommoditiesSold().get(1);
+        segComm.setCapacity(1000);
+        segComm.setQuantity(0);
+        segComm.setPeakQuantity(0);
+        segComm.getSettings().setPriceFunction(
+                PriceFunctionFactory.createStepPriceFunction(1, 1, Double.POSITIVE_INFINITY));
         return cl;
     }
 
@@ -287,7 +295,13 @@ public class EconomyCachesOPTest {
                 .setActive(true)
                 .setCommodityType(TopologyDTO.CommodityType.newBuilder()
                         .setType(CommodityType.MEM_PROVISIONED_VALUE)
-                        .setKey(StringConstants.CLUSTER_KEY_STATIC)
+                        .build()));
+        clslBuilder.addCommodityBought(CommodityBoughtDTO.newBuilder()
+                .setUsed(1)
+                .setActive(true)
+                .setCommodityType(TopologyDTO.CommodityType.newBuilder()
+                        .setType(CommodityType.ACCESS_VALUE)
+                        .setKey(StringConstants.FAKE_CLUSTER_ACCESS_COMMODITY_KEY)
                         .build()));
         clSl.setCommoditiesBoughtFromProvider(clslBuilder.build());
         InitialPlacementBuyer vm = InitialPlacementBuyer.newBuilder()

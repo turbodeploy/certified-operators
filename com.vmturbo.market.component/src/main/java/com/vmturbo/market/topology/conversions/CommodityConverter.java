@@ -43,6 +43,7 @@ import com.vmturbo.platform.analysis.protobuf.UpdatingFunctionDTOs.UpdatingFunct
 import com.vmturbo.platform.analysis.utilities.BiCliquer;
 import com.vmturbo.platform.common.builders.SDKConstants;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.util.Pair;
 
 /**
@@ -244,8 +245,11 @@ public class CommodityConverter {
                 && dto.getEntityState() == EntityState.POWERED_ON;
 
         // Overwrite the flag for vSAN
-        if (TopologyConversionUtils.isVsanStorage(dto)
-                && type == CommodityDTO.CommodityType.STORAGE_PROVISIONED_VALUE) {
+        if ((TopologyConversionUtils.isVsanStorage(dto)
+                && type == CommodityDTO.CommodityType.STORAGE_PROVISIONED_VALUE) ||
+                (dto.getEntityType() == EntityType.CLUSTER_VALUE
+                        && (type == CommodityDTO.CommodityType.MEM_PROVISIONED_VALUE ||
+                        type == CommodityDTO.CommodityType.CPU_PROVISIONED_VALUE))) {
             resizable = true;
         }
 
