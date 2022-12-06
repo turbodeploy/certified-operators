@@ -182,8 +182,6 @@ public class ReservedInstanceCoverageUpdate {
                 // utilization data will use them later.
                 entityReservedInstanceMappingStore.updateEntityReservedInstanceMapping(transactionContext,
                         entityRICoverageUploads);
-                entityReservedInstanceMappingStore.updateHistEntityRICoverageMappings(transactionContext,
-                        entityRICoverageUploads);
                 reservedInstanceUtilizationStore.updateReservedInstanceUtilization(
                         transactionContext,
                         topologyCreationTime);
