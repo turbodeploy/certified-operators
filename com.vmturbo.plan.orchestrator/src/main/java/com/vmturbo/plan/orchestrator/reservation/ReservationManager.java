@@ -761,11 +761,14 @@ public class ReservationManager implements ReservationDeletedListener {
             placementInfos.add(computePlacementInfo);
             if (enableOP) {
                 PlacementInfo.Builder clusterPlacementInfo =
-                        PlacementInfo.newBuilder().clearProviderId().addCommodityBought(
-                                createCommodityBoughtDTO(CommodityDTO.CommodityType.CPU_PROVISIONED_VALUE,
-                                        Optional.of(StringConstants.CLUSTER_KEY_STATIC), numOfCpu * cpuSpeed)).addCommodityBought(
-                                createCommodityBoughtDTO(CommodityDTO.CommodityType.MEM_PROVISIONED_VALUE,
-                                        Optional.of(StringConstants.CLUSTER_KEY_STATIC), memorySize)).setProviderType(EntityType.CLUSTER_VALUE);
+                        PlacementInfo.newBuilder().clearProviderId()
+                                .addCommodityBought(createCommodityBoughtDTO(CommodityDTO.CommodityType.CPU_PROVISIONED_VALUE,
+                                        numOfCpu * cpuSpeed))
+                                .addCommodityBought(createCommodityBoughtDTO(CommodityDTO.CommodityType.MEM_PROVISIONED_VALUE,
+                                        memorySize))
+                                .addCommodityBought(createCommodityBoughtDTO(CommodityDTO.CommodityType.ACCESS_VALUE,
+                                        Optional.of(StringConstants.FAKE_CLUSTER_ACCESS_COMMODITY_KEY), 1.0))
+                                .setProviderType(EntityType.CLUSTER_VALUE);
                 placementInfos.add(clusterPlacementInfo);
             }
 

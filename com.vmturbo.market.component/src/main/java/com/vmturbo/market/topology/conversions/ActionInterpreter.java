@@ -258,6 +258,9 @@ public class ActionInterpreter {
                     actionList.add(ActionData.of(actionTO, action));
                     break;
                 case RESIZE:
+                    if (isFakeClusterEntity(actionTO.getResize().getSellingTrader())) {
+                        break;
+                    }
                     action = createAction(actionTO);
                     Optional<ActionDTO.Resize> resize = resizeInterpreter.interpret(
                             actionTO.getResize(), projectedTopology);
@@ -273,6 +276,9 @@ public class ActionInterpreter {
                     actionList.add(ActionData.of(actionTO, action));
                     break;
                 case DEACTIVATE:
+                    if (isFakeClusterEntity(actionTO.getDeactivate().getTraderToDeactivate())) {
+                        break;
+                    }
                     action = createAction(actionTO);
                     action.getInfoBuilder().setDeactivate(interpretDeactivate(
                             actionTO.getDeactivate(), projectedTopology));
@@ -937,8 +943,17 @@ public class ActionInterpreter {
      * @return if the move is involved with a fake cluster
      */
     private boolean isFakeClusterMove(MoveTO move) {
-        return this.fakeEntityCreator.isFakeComputeClusterOid(move.getDestination())
-                || this.fakeEntityCreator.isFakeComputeClusterOid(move.getSource());
+        return isFakeClusterEntity(move.getDestination())
+                || isFakeClusterEntity(move.getSource());
+    }
+
+    /**
+     * check if the entity is a fake cluster
+     * @param entityId
+     * @return if the entity is a fake cluster
+     */
+    private boolean isFakeClusterEntity(long entityId) {
+        return this.fakeEntityCreator.isFakeComputeClusterOid(entityId);
     }
 
     /**

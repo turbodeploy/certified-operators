@@ -618,7 +618,14 @@ public class StringConstants {
     public static final String AVAILABILITY_SET_RECOMMEND_ONLY_PREFIX = "ASRO:";
 
     /**
-     * A static key for the provision commodities sold by cluster.
+     * A prefix for the cluster commodities sold by cluster.
      */
-    public static final String CLUSTER_KEY_STATIC = "CLUSTER_KEY_STATIC";
+    public static final String FAKE_CLUSTER_COMMODITY_PREFIX = "FAKE_CLUSTER_COMMODITY_PREFIX";
+
+    /**
+     * A key for the access commodities sold by fake cluster.
+     */
+    public static final String FAKE_CLUSTER_ACCESS_COMMODITY_KEY = "FAKE_CLUSTER_ACCESS_COMMODITY_KEY";
+
+
 }

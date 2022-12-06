@@ -142,6 +142,7 @@ public class InterpretActionTest {
             mock(ReversibilitySettingFetcher.class);
     private CloudActionSavingsCalculator actionSavingsCalculator =
             mock(CloudActionSavingsCalculator.class);
+    private FakeEntityCreator fakeEntityCreator = mock(FakeEntityCreator.class);
 
     /**
      * Rule to manage feature flag enablement.
@@ -182,6 +183,7 @@ public class InterpretActionTest {
             .thenReturn(consistentScalingHelper);
 
         when(actionSavingsCalculator.calculateSavings(any())).thenReturn(CalculatedSavings.NO_SAVINGS_USD);
+        when(fakeEntityCreator.isFakeComputeClusterOid(anyLong())).thenReturn(false);
     }
 
     @Test
@@ -958,6 +960,7 @@ public class InterpretActionTest {
                 .useVMReservationAsUsed(false)
                 .singleVMonHost(false)
                 .customUtilizationThreshold(0.5f)
+                .fakeEntityCreator(fakeEntityCreator)
                 .build();
 
         topologyConverter.setConvertToMarketComplete();
@@ -1015,6 +1018,7 @@ public class InterpretActionTest {
                 .useVMReservationAsUsed(false)
                 .singleVMonHost(false)
                 .customUtilizationThreshold(0.5f)
+                .fakeEntityCreator(fakeEntityCreator)
                 .build();
         topologyConverter.setConvertToMarketComplete();
         final TopologyConverter converter = spy(topologyConverter);
@@ -1204,6 +1208,7 @@ public class InterpretActionTest {
                 .useVMReservationAsUsed(false)
                 .singleVMonHost(false)
                 .customUtilizationThreshold(0.5f)
+                .fakeEntityCreator(fakeEntityCreator)
                 .build();
         topologyConverter.setConvertToMarketComplete();
         final TopologyConverter converter = spy(topologyConverter);
@@ -1299,8 +1304,7 @@ public class InterpretActionTest {
         ActionInterpreter interpreter = new ActionInterpreter(mockedCommodityConverter,
                 slInfoMap, mockCloudTc, originalTopology, ImmutableMap.of(),
                 new CommoditiesResizeTracker(), mock(ProjectedRICoverageCalculator.class), mock(TierExcluder.class),
-                CommodityIndex.newFactory()::newIndex, null, new HashMap<>(), Mockito.mock(
-                FakeEntityCreator.class));
+                CommodityIndex.newFactory()::newIndex, null, new HashMap<>(), fakeEntityCreator);
         // Assuming that 1 is the oid of trader created for m1.large x region and 2 is the oid
         // created for m1.medium x region
         ActionTO actionTO = ActionTO.newBuilder().setImportance(0).setIsNotExecutable(false)

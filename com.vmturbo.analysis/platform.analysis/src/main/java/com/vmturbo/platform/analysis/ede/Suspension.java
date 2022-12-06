@@ -374,6 +374,12 @@ public class Suspension {
 
             if (isProviderOfResizeThroughSupplier) {
                 for (ShoppingList sl : resizeThroughSupplierCustomers) {
+                    // the quote should not be affected by the unquoted commodity as  the
+                    // provisioned commodity are unquoted and we dont want the host to be suspended
+                    // if the cluster is full.. so dont ignore the Unquoted Commodities..
+                    List<Integer> unquotedCommodities = new ArrayList<>();
+                    unquotedCommodities.addAll(sl.getModifiableUnquotedCommoditiesBaseTypeList());
+                    sl.getModifiableUnquotedCommoditiesBaseTypeList().clear();
                     // skip vsan storage's shopping list when considering reverse suspension
                     if (Utility.isUnmovableRTSShoppingList(sl)) {
                         continue;
@@ -383,6 +389,7 @@ public class Suspension {
                     final QuoteMinimizer minimizer = sellers.stream()
                                             .collect(() -> new QuoteMinimizer(economy, sl),
                                                     QuoteMinimizer::accept, QuoteMinimizer::combine);
+                    sl.getModifiableUnquotedCommoditiesBaseTypeList().addAll(unquotedCommodities);
                     if (Double.isInfinite(minimizer.getTotalBestQuote())) {
                         return rollBackSuspends(suspendActions);
                     }
