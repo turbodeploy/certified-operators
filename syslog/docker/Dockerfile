@@ -29,9 +29,20 @@ RUN dnf install -y rsyslog procps-ng zip xz python2 gnutls wget  && \
 
 # Install yq for yaml properties extraction.
 ARG YQ_VERSION=v4.27.3
-ARG YQ_BINARY=yq_linux_386
-RUN wget https://github.com/mikefarah/yq/releases/download/${YQ_VERSION}/${YQ_BINARY} -O /usr/bin/yq && \
-    chmod +x /usr/bin/yq
+# Unfortunately, our build system was built before BuildKit was available.
+# Additionally, we use spotify's docker-maven-plugin for triggering the docker builds.
+# Support for this plugin was dropped before BuildKit was available.
+# For now we use a solution that's good enough for a developer to get stuff running on their laptop.
+# When we want to support multi-architecture builds, we will need to migrate to a different maven
+# plugin in OM-93669.
+RUN case $(uname -m) in \
+      "aarch64")  \
+        YQ_BINARY=yq_linux_arm64 ;; \
+      *) \
+        YQ_BINARY=yq_linux_386 ;; \
+    esac \
+	&& wget https://github.com/mikefarah/yq/releases/download/${YQ_VERSION}/${YQ_BINARY} -O /usr/bin/yq \
+    && chmod +x /usr/bin/yq
 
 COPY entrypoint.sh /
 ADD rsyslog.conf /etc
