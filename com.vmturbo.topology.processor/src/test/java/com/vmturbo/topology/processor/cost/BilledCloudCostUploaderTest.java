@@ -200,6 +200,60 @@ public class BilledCloudCostUploaderTest {
     }
 
     /**
+     * Try to upload some billing data with no cost tag groups. Expect that a cost tags upload request will be sent, but
+     * expect that it is empty.
+     */
+    @Test
+    public void testRequestWithNoTagGroups() {
+
+        final long targetId = 0L;
+        final SDKProbeType probeType = SDKProbeType.AWS_CLOUD_BILLING;
+
+        final CloudBillingData cloudBillingData = CloudBillingData.newBuilder()
+                .setBillingIdentifier("47111111")
+                .addCloudCostBuckets(CloudBillingBucket.newBuilder()
+                        .setTimestampUtcMillis(1664064000000L)
+                        .addSamples(VIRTUAL_MACHINE_USAGE_1.toBuilder().clearCostTagGroupId().build()))
+                .addCloudCostBuckets(CloudBillingBucket.newBuilder()
+                        .setTimestampUtcMillis(1664070000000L)
+                        .addSamples(VIRTUAL_MACHINE_USAGE_2.toBuilder().clearCostTagGroupId().build()))
+                .build();
+
+        // Set up the BilledCostUploader
+        final BilledCloudCostUploader billedCloudCostUploader =
+                Mockito.spy(new BilledCloudCostUploader(billedCostServiceStub, 1024 * 1024, 30));
+
+        // Set up CloudEntitiesMap (register fake OIDs)
+        final Map<String, Long> entityBillingIdToOidMap = new HashMap<>();
+        registerOids(cloudEntitiesMap, entityBillingIdToOidMap, cloudBillingData);
+
+        doReturn(cloudEntitiesMap).when(billedCloudCostUploader)
+                .createCloudEntitiesMap(any(), any());
+        doReturn(entityBillingIdToOidMap).when(billedCloudCostUploader)
+                .createEntityBillingIdToOidMap(any());
+
+        // Execute the test actions
+        billedCloudCostUploader.enqueueTargetBillingData(targetId, probeType,
+                ImmutableList.of(cloudBillingData));
+
+        billedCloudCostUploader.processUploadQueue(stitchingContext);
+
+        // Extract the captured, chunked requests
+        final List<UploadBilledCloudCostRequest> interceptedRequests =
+                billedCostServiceSpy.getAllRequests();
+
+        // Despite not including any cost tag groups, there should have been an
+        // empty cost tag groups segment sent
+        final List<CostTagsSegment> costTagsSegments = interceptedRequests.stream()
+                .filter(UploadBilledCloudCostRequest::hasCostTags)
+                .map(UploadBilledCloudCostRequest::getCostTags)
+                .collect(Collectors.toList());
+
+        assertEquals(1, costTagsSegments.size());
+        assertEquals(0, costTagsSegments.get(0).getCostTagGroupCount());
+    }
+
+    /**
      * Verify that a request is successfully sent containing multiple cost buckets (but not
      * necessarily chunked).
      */

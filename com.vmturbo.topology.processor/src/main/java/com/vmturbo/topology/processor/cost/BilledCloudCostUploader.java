@@ -351,11 +351,17 @@ public class BilledCloudCostUploader implements DiagsRestorable<Void> {
     /**
      * Convert {@link BilledCostBucket}s to Protobuf, split up buckets larger than the maximum size,
      * and merge the rest into chunks of up to the maximum size.
+     *
+     * <p>Always returns at least 1 segment which will be empty if no billed cost buckets were provided.
      */
     @Nonnull
     private List<BilledCostSegment> chunkBilledCostBuckets(
-            @Nonnull final Iterable<BilledCostBucket> billedCostBuckets)
+            @Nonnull final List<BilledCostBucket> billedCostBuckets)
             throws MessageChunker.OversizedElementException {
+
+        if (billedCostBuckets.isEmpty()) {
+            return ImmutableList.of(BilledCostSegment.getDefaultInstance());
+        }
 
         final ImmutableList.Builder<BilledCostBucket> sizeCappedBuckets = ImmutableList.builder();
 
@@ -417,11 +423,17 @@ public class BilledCloudCostUploader implements DiagsRestorable<Void> {
 
     /**
      * Convert {@link CostTagGroup}s to Protobuf and merge them into chunks of a maximum size.
+     *
+     * <p>Always returns at least 1 segment which will be empty if no cost tag groups were provided.
      */
     @Nonnull
     private List<CostTagsSegment> chunkCostTagGroups(
             @Nonnull final Map<Long, CostTagGroup> costTagGroups)
             throws MessageChunker.OversizedElementException {
+
+        if (costTagGroups.isEmpty()) {
+            return ImmutableList.of(CostTagsSegment.getDefaultInstance());
+        }
 
         final List<CostTagsSegment> costTagsSegments = costTagGroups.entrySet()
                 .stream()
