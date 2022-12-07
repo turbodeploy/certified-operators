@@ -86,7 +86,8 @@ import com.vmturbo.trax.TraxThrottlingLimit;
     BilledCostConfig.class,
     StoredProcedureConfig.class,
     CostPartitioningConfig.class,
-    CloudCostConfig.class
+    CloudCostConfig.class,
+    ScopeIdReplacementLogConfig.class
 })
 public class CostComponent extends BaseVmtComponent {
     /**
@@ -161,6 +162,9 @@ public class CostComponent extends BaseVmtComponent {
 
     @Autowired
     private BilledCostConfig billedCostConfig;
+
+    @Autowired
+    private ScopeIdReplacementLogConfig scopeIdReplacementLogConfig;
 
     @Autowired
     private CloudCostConfig cloudCostConfig;
@@ -239,6 +243,7 @@ public class CostComponent extends BaseVmtComponent {
                 cloudCommitmentRpcService,
                 billedCostConfig.billedCostUploadRpcService(),
                 billedCostRpcService,
+                scopeIdReplacementLogConfig.uploadAliasedOidsRpcService(),
                 cloudCostDiagsRpcService);
     }
 
