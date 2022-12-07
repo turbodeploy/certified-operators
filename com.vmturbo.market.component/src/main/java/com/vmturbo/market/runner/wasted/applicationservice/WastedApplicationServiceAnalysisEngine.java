@@ -150,10 +150,12 @@ public class WastedApplicationServiceAnalysisEngine implements WastedEntityAnaly
                     Lists.newArrayList(Iterables.concat(listOfVirtualMachineSpec, listOfApplicationComponent)));
 
             logger.info("Found " + unUtilizedAppServicePlans.size() + " Wasted App Service Plans");
-            // Filter out non-controllable ASPs. Do not generate actions for controllable false.
-            unUtilizedAppServicePlans = unUtilizedAppServicePlans.stream().filter(
-                    id -> topologyEntities.get(id).getAnalysisSettings().getControllable()).collect(
-                    Collectors.toSet());
+            unUtilizedAppServicePlans = unUtilizedAppServicePlans.stream()
+                    // Filter out non-controllable ASPs. Do not generate actions for controllable false.
+                    .filter(id -> topologyEntities.get(id).getAnalysisSettings().getControllable())
+                    // Also make sure the policy controlling delete actions are enabled
+                    .filter(id -> topologyEntities.get(id).getAnalysisSettings().getDeletable())
+                    .collect(Collectors.toSet());
             logger.info("Generating Actions for " + unUtilizedAppServicePlans.size()
                     + " Wasted App Service Plans (controllable)");
 
