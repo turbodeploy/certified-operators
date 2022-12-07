@@ -2,7 +2,7 @@ apiVersion: operators.coreos.com/v1alpha1
 kind: ClusterServiceVersion
 metadata:
   annotations:
-    alm-examples: '[{"apiVersion":"charts.helm.k8s.io/v1","kind":"Xl","metadata":{"name":"xl-release"},"spec":{"global":{"customImageNames": false,"repository": "registry.connect.redhat.com/turbonomic","tag":"8.7.2"}}}]'
+    alm-examples: '[{"apiVersion":"charts.helm.k8s.io/v1","kind":"Xl","metadata":{"name":"xl-release"},"spec":{"global":{"externalDbIP": "10.0.2.15","customImageNames": false,"repository": "registry.connect.redhat.com/turbonomic","tag":"8.7.2"}}}]'
     capabilities: Basic Install
     categories: Monitoring
     certified: "false"
@@ -17,7 +17,7 @@ spec:
   apiservicedefinitions: {}
   customresourcedefinitions:
     owned:
-      - description: Turbonomic Workload Automation for Multicloud simultaneously optimizes performance, compliance, and cost in real-time. Workloads are precisely resourced, automatically, to perform while satisfying business constraints.
+      - description: Turbonomic Workload Automation for Multicloud simultaneously optimizes performance, compliance, and cost in real-time. Workloads are precisely resourced, automatically, to perform while satisfying business constraints. Turbonomic platform install and configuration documentation can be found online here https://www.ibm.com/docs/en/tarm/latest?topic=installation-installing-kubernetes-clusters
         displayName: Turbonomic Platform Operator
         kind: Xl
         name: xls.charts.helm.k8s.io
@@ -29,6 +29,13 @@ spec:
     * Continuous scaling for applications and the underlying infrastructure.
 
     It assures application performance by giving workloads the resources they need when they need them.
+
+    ### How do I start?
+    
+    Turbonomic platform installation and configuration documentation can be found on the IBM Turbonomic documentation site here https://www.ibm.com/docs/en/tarm/latest?topic=installation-installing-kubernetes-clusters
+    Carefully read through the prerequisites before beginning the installation.  Once ready, on the `Details` tab for the Turbonomic Platform Operator, under `Provided APIs`, click `Create instance`.  
+    For samples of common configurations, refer to sample custom resource YAMLs provided here: https://github.com/turbonomic/t8c-install/tree/master/samples 
+    Looking to upgrade your current deployment? Refer to documentation here: https://www.ibm.com/docs/en/tarm/latest?topic=version-updating-using-red-hat-openshift-operatorhub
 
     ### How does it work?
     Turbonomic uses a public APIs already exposed by application and infrastructure instrumentation to discover and monitor your environment.
