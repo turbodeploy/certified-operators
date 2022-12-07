@@ -5,6 +5,7 @@ Operator Versions
 ---------------------
 42.20
 1. Fixed a bug where log messages would get lost in a Turbo Secure Connect environment
+2. Disable the default containerized DB creation step for new installation by adding an `externalDbIp` field under the `spec/global` section of the CR yaml file.
 
 42.19
 1. Added the AWS Kinesis connector to the helm charts
