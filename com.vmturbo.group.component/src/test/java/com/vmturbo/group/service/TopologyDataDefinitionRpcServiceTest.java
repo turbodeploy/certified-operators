@@ -306,7 +306,7 @@ public class TopologyDataDefinitionRpcServiceTest {
      * Test 2 delete cases: when the definition to be deleted exists and when it does not.
      */
     @Test
-    public void testDeleteTopologyDataDefinition() {
+    public void testDeleteTopologyDataDefinition() throws StoreOperationException {
         verifyDelete(true);
         verifyDelete(false);
     }
@@ -316,7 +316,7 @@ public class TopologyDataDefinitionRpcServiceTest {
      *
      * @param definitionExists flag indicating whether the definition we're deleting exists or not.
      */
-    private void verifyDelete(boolean definitionExists) {
+    private void verifyDelete(boolean definitionExists) throws StoreOperationException {
         final StreamObserver<DeleteTopologyDataDefinitionResponse>
             mockDeleteTopologyDataDefResponseObserver = Mockito.mock(StreamObserver.class);
         final DeleteTopologyDataDefinitionResponse response = DeleteTopologyDataDefinitionResponse

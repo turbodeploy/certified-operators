@@ -148,11 +148,14 @@ public class TopologyDataDefinitionRpcService extends TopologyDataDefinitionServ
                 + "definition delete: No TopologyDataDefinition ID specified";
             returnErrorResponse(errMsg, Status.INVALID_ARGUMENT, responseObserver, null);
         } else {
-            responseObserver.onNext(DeleteTopologyDataDefinitionResponse.newBuilder()
-                .setDeleted(topologyDataDefinitionStore
-                    .deleteTopologyDataDefinition(request.getId()))
-                .build());
-            responseObserver.onCompleted();
+            try {
+                responseObserver.onNext(DeleteTopologyDataDefinitionResponse.newBuilder()
+                        .setDeleted(topologyDataDefinitionStore.deleteTopologyDataDefinition(request.getId()))
+                        .build());
+                responseObserver.onCompleted();
+            } catch (StoreOperationException e) {
+                returnErrorResponse(e.getMessage(), e.getStatus(), responseObserver, e);
+            }
         }
     }
 

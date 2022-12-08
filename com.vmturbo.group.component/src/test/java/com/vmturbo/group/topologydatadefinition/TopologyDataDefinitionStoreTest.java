@@ -262,7 +262,7 @@ public class TopologyDataDefinitionStoreTest extends MultiDbTestBase {
      * true, and it does nothing if you pass in a bogus OID and returns false.
      */
     @Test
-    public void testDelete() {
+    public void testDelete() throws StoreOperationException {
         // preconditions
         Collection<TopologyDataDefinitionEntry> entityDefs =
             topologyDataDefinitionStore.getAllTopologyDataDefinitions();
