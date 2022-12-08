@@ -254,7 +254,7 @@ public class PlanPipelineFactory {
      * @return The {@link TopologyPipeline}. This pipeline will accept an {@link EntityStore}
      *         and return the {@link TopologyBroadcastInfo} of the successful broadcast.
      */
-    TopologyPipeline<EntityStore, TopologyBroadcastInfo> planOverLiveTopology(
+    TopologyPipeline<PipelineInput, TopologyBroadcastInfo> planOverLiveTopology(
         @Nonnull final TopologyInfo topologyInfo,
         @Nonnull final List<ScenarioChange> changes,
         @Nullable final PlanScope scope,
@@ -264,7 +264,7 @@ public class PlanPipelineFactory {
         // if the constructed topology is already in the cache from the realtime topology, just
         // add the stage that will read it from the cache, otherwise add the stitching stage
         // and the construct topology stage so we can build the topology
-        PipelineDefinitionBuilder<EntityStore, TopologyBroadcastInfo, EntityStore, TopologyPipelineContext> topoPipelineBuilder =
+        PipelineDefinitionBuilder<PipelineInput, TopologyBroadcastInfo, PipelineInput, TopologyPipelineContext> topoPipelineBuilder =
             PipelineDefinition.newBuilder(context);
         topoPipelineBuilder.initialContextMember(TopologyPipelineContextMembers.GROUP_RESOLVER,
             () -> new GroupResolver(searchResolver, groupServiceClient, searchFilterResolver));
@@ -273,7 +273,7 @@ public class PlanPipelineFactory {
                     StitchingJournalContainer::new);
         }
 
-        PipelineDefinitionBuilder<EntityStore, TopologyBroadcastInfo, Map<Long, TopologyEntity.Builder>, TopologyPipelineContext> builderContinuation;
+        PipelineDefinitionBuilder<PipelineInput, TopologyBroadcastInfo, Map<Long, TopologyEntity.Builder>, TopologyPipelineContext> builderContinuation;
         if (constructTopologyStageCache.isEmpty()) {
             builderContinuation = topoPipelineBuilder
                 .addStage(new StitchingStage(stitchingManager, journalFactory,
@@ -291,7 +291,7 @@ public class PlanPipelineFactory {
                 .addStage(new CachingConstructTopologyFromStitchingContextStage(constructTopologyStageCache))
                 .addStage(new InitializeTopologyEntitiesStage());
         }
-        final TopologyPipeline<EntityStore, TopologyBroadcastInfo> pipeline = new TopologyPipeline<>(builderContinuation
+        final TopologyPipeline<PipelineInput, TopologyBroadcastInfo> pipeline = new TopologyPipeline<>(builderContinuation
             .addStage(new ReservationStage(reservationManager))
                 // TODO: Move the ToplogyEditStage after the GraphCreationStage
                 // That way the editstage can work on the graph instead of a

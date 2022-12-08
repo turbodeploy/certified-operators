@@ -13,6 +13,7 @@ import javax.annotation.Nonnull;
 import io.grpc.stub.StreamObserver;
 
 import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
 import org.mockito.InOrder;
 import org.mockito.Mockito;
@@ -38,6 +39,8 @@ import com.vmturbo.matrix.component.external.MatrixInterface;
 import com.vmturbo.repository.api.RepositoryClient;
 import com.vmturbo.stitching.StitchingEntity;
 import com.vmturbo.stitching.TopologyEntity;
+import com.vmturbo.test.utils.FeatureFlagTestRule;
+import com.vmturbo.test.utils.FeatureFlagTestRule.FeatureFlagTest;
 import com.vmturbo.topology.graph.TopologyGraph;
 import com.vmturbo.topology.graph.search.SearchResolver;
 import com.vmturbo.topology.processor.actions.ActionConstraintsUploader;
@@ -128,7 +131,13 @@ public class TopologyPipelineFactoryTest {
     private ReservationManager reservationManager;
     private EphemeralEntityEditor ephemeralEntityEditor;
     private ProbeActionCapabilitiesApplicatorEditor probeActionCapabilitiesApplicatorEditor;
+    private PipelineInput pipelineInput;
 
+    /**
+     * Rule to initialize FeatureFlags store.
+     **/
+    @Rule
+    public FeatureFlagTestRule featureFlagTestRule = new FeatureFlagTestRule();
 
     /**
      * Setup.
@@ -160,6 +169,7 @@ public class TopologyPipelineFactoryTest {
         mockStitchingContext();
         mockStitchingManager();
         mockEntityStore();
+        mockPipelineInput();
         mockEnvironmentInjector();
         mockPolicyManager();
         mockHistoryVolumesListener();
@@ -191,6 +201,12 @@ public class TopologyPipelineFactoryTest {
         entityStore = mock(EntityStore.class);
         when(entityStore.constructStitchingContext(stalenessInformationProvider))
             .thenReturn(stitchingContext);
+    }
+
+    private void mockPipelineInput() {
+        pipelineInput = mock(PipelineInput.class);
+        when(pipelineInput.getEntityStore()).thenReturn(entityStore);
+        when(pipelineInput.getStitchingContext()).thenReturn(stitchingContext);
     }
 
     private void mockEnvironmentInjector() {
@@ -302,14 +318,15 @@ public class TopologyPipelineFactoryTest {
      * @throws InterruptedException if test is interrupted.
      */
     @Test
+    @FeatureFlagTest(testCombos = {"USE_EXTENDABLE_PIPELINE_INPUT"})
     public void testPipelineRunExecutesVolumesDaysUnAttachedCalcStageBeforeSettingsResolutionStage()
         throws Pipeline.PipelineException, InterruptedException {
         // given
         final LivePipelineFactory lpf = livePipelineFactory(matrixInterface, licenseCheckClient);
-        final TopologyPipeline<EntityStore, TopologyBroadcastInfo> pipeline = lpf
+        final TopologyPipeline<PipelineInput, TopologyBroadcastInfo> pipeline = lpf
             .liveTopology(liveTopoInfo, Collections.emptyList(), stitchingJournalFactory);
         // when
-        pipeline.run(entityStore);
+        pipeline.run(pipelineInput);
         // then
         final InOrder inOrder = Mockito.inOrder(historyVolumesListener, entitySettingsResolver);
         inOrder.verify(historyVolumesListener).getVolIdToLastAttachmentTime();
