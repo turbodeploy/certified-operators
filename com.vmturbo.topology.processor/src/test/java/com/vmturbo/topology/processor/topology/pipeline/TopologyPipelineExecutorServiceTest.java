@@ -6,6 +6,7 @@ import static org.hamcrest.Matchers.is;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
+import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.isA;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
@@ -28,9 +29,11 @@ import javax.annotation.Nonnull;
 
 import org.junit.Assert;
 import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Captor;
+import org.mockito.Mockito;
 import org.mockito.MockitoAnnotations;
 
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.PlanScope;
@@ -43,9 +46,12 @@ import com.vmturbo.components.api.RetriableOperation.RetriableOperationFailedExc
 import com.vmturbo.components.api.test.MutableFixedClock;
 import com.vmturbo.components.common.pipeline.Pipeline.PipelineException;
 import com.vmturbo.components.common.utils.ComponentRestartHelper;
+import com.vmturbo.test.utils.FeatureFlagTestRule;
+import com.vmturbo.test.utils.FeatureFlagTestRule.FeatureFlagTest;
 import com.vmturbo.topology.processor.api.server.TopoBroadcastManager;
 import com.vmturbo.topology.processor.api.server.TopologyProcessorNotificationSender;
 import com.vmturbo.topology.processor.entity.EntityStore;
+import com.vmturbo.topology.processor.staledata.StalenessInformationProvider;
 import com.vmturbo.topology.processor.stitching.journal.StitchingJournalFactory;
 import com.vmturbo.topology.processor.targets.TargetStore;
 import com.vmturbo.topology.processor.topology.TopologyBroadcastInfo;
@@ -96,6 +102,9 @@ public class TopologyPipelineExecutorServiceTest {
 
     private static final ComponentRestartHelper componentRestartHelper = new ComponentRestartHelper(6);
 
+    private StalenessInformationProvider mockStalenessInformationProvider = mock(
+            StalenessInformationProvider.class);
+
     private TopologyPipelineExecutorService pipelineExecutorService =
         new TopologyPipelineExecutorService(CONCURRENT_PLANS_ALLOWED,
             mockPlanExecutorService,
@@ -109,11 +118,18 @@ public class TopologyPipelineExecutorServiceTest {
             targetStore,
             MAX_BLOCK_TIME,
             TimeUnit.MILLISECONDS,
-            componentRestartHelper);
+            componentRestartHelper,
+            mockStalenessInformationProvider);
 
     private final TopologyInfo topologyInfo = TopologyInfo.newBuilder()
         .setTopologyContextId(77)
         .build();
+
+    /**
+     * Rule to initialize FeatureFlags store.
+     **/
+    @Rule
+    public FeatureFlagTestRule featureFlagTestRule = new FeatureFlagTestRule();
 
     /**
      * Captor for the {@link TopologyBroadcastInfo} submitted to the pipeline queue.
@@ -246,11 +262,14 @@ public class TopologyPipelineExecutorServiceTest {
      * @throws Exception To satisfy compiler.
      */
     @Test
+    @FeatureFlagTest(testCombos = {"USE_EXTENDABLE_PIPELINE_INPUT"})
     public void testRunLivePipeline() throws Exception {
+        // Reset the Realtime Queue mock so that it can be used for all Feature Flag combinations.
+        Mockito.reset(mockRealtimeQueue);
         final TopologyBroadcastInfo expectedBroadcastInfo = mock(TopologyBroadcastInfo.class);
-        final TopologyPipeline<EntityStore, TopologyBroadcastInfo> pipeline = mock(TopologyPipeline.class);
+        final TopologyPipeline<PipelineInput, TopologyBroadcastInfo> pipeline = mock(TopologyPipeline.class);
         when(pipeline.getTopologyInfo()).thenReturn(topologyInfo);
-        when(pipeline.run(mockEntityStore)).thenReturn(expectedBroadcastInfo);
+        when(pipeline.run(any(PipelineInput.class))).thenReturn(expectedBroadcastInfo);
         when(mockLivePipelineFactory.liveTopology(topologyInfo, BROADCAST_MANAGERS, JOURNAL_FACTORY))
             .thenReturn(pipeline);
 
@@ -271,11 +290,14 @@ public class TopologyPipelineExecutorServiceTest {
      * @throws Exception To satisfy compiler.
      */
     @Test
+    @FeatureFlagTest(testCombos = {"USE_EXTENDABLE_PIPELINE_INPUT"})
     public void testRunPlanPipeline() throws Exception {
+        // Reset the Plan Queue mock so that it can be used for all Feature Flag combinations.
+        Mockito.reset(mockPlanQueue);
         final TopologyBroadcastInfo expectedBroadcastInfo = mock(TopologyBroadcastInfo.class);
-        final TopologyPipeline<EntityStore, TopologyBroadcastInfo> pipeline = mock(TopologyPipeline.class);
+        final TopologyPipeline<PipelineInput, TopologyBroadcastInfo> pipeline = mock(TopologyPipeline.class);
         when(pipeline.getTopologyInfo()).thenReturn(topologyInfo);
-        when(pipeline.run(mockEntityStore)).thenReturn(expectedBroadcastInfo);
+        when(pipeline.run(any(PipelineInput.class))).thenReturn(expectedBroadcastInfo);
         when(mockPlanPipelineFactory.planOverLiveTopology(topologyInfo, SCENARIO_CHANGES,
                 PLAN_SCOPE, null, JOURNAL_FACTORY))
             .thenReturn(pipeline);

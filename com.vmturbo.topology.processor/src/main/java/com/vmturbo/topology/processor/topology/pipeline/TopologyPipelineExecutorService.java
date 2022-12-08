@@ -28,6 +28,7 @@ import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.PlanScope;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange;
+import com.vmturbo.common.protobuf.target.TargetDTO.TargetHealth;
 import com.vmturbo.common.protobuf.topology.AnalysisDTO.EntityOids;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyBroadcastFailure;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyBroadcastSuccess;
@@ -38,9 +39,12 @@ import com.vmturbo.components.common.utils.ComponentRestartHelper;
 import com.vmturbo.topology.processor.api.server.TopoBroadcastManager;
 import com.vmturbo.topology.processor.api.server.TopologyProcessorNotificationSender;
 import com.vmturbo.topology.processor.entity.EntityStore;
+import com.vmturbo.topology.processor.staledata.StalenessInformationProvider;
 import com.vmturbo.topology.processor.stitching.journal.StitchingJournalFactory;
 import com.vmturbo.topology.processor.targets.TargetStore;
 import com.vmturbo.topology.processor.topology.TopologyBroadcastInfo;
+
+import common.HealthCheck.HealthState;
 
 /**
  * This class controls the building and running of topology pipelines. It is responsible for
@@ -69,6 +73,19 @@ public class TopologyPipelineExecutorService implements AutoCloseable {
     private final TopologyPipelineQueue planPipelineQueue;
 
     private final TargetStore targetStore;
+
+    private final StalenessInformationProvider stalenessInformationProvider;
+
+    private static final TargetHealth DEFAULT_TARGET_HEALTH =
+            TargetHealth.newBuilder().setHealthState(HealthState.NORMAL).build();
+
+    private static final StalenessInformationProvider defaultStalenessInformationProvider =
+            new StalenessInformationProvider() {
+                @Override
+                public TargetHealth getLastKnownTargetHealth(long targetOid) {
+                    return DEFAULT_TARGET_HEALTH;
+                }
+            };
 
     /**
      * This is the "real" constructor. Intended to be invoked from a Spring configuration.
@@ -99,7 +116,8 @@ public class TopologyPipelineExecutorService implements AutoCloseable {
             @Nonnull final Clock clock,
             final long maxBroadcastWait,
             @Nonnull final TimeUnit timeUnit,
-            @Nonnull final ComponentRestartHelper componentRestartHelper) {
+            @Nonnull final ComponentRestartHelper componentRestartHelper,
+            @Nonnull final StalenessInformationProvider stalenessInformationProvider) {
         this(concurrentPlansAllowed, createPlanExecutorService(concurrentPlansAllowed), createRealtimeExecutorService(),
             new PlanPipelineQueue(clock, maxQueuedPlansAllowed),
             // We only expect one queued live pipeline, because we collapse all the other ones.
@@ -111,7 +129,8 @@ public class TopologyPipelineExecutorService implements AutoCloseable {
             targetStore,
             maxBroadcastWait,
             timeUnit,
-            componentRestartHelper);
+            componentRestartHelper,
+            stalenessInformationProvider);
     }
 
     @VisibleForTesting
@@ -127,7 +146,8 @@ public class TopologyPipelineExecutorService implements AutoCloseable {
             @Nonnull final TargetStore targetStore,
             final long maxBroadcastWait,
             @Nonnull final TimeUnit timeUnit,
-            @Nonnull final ComponentRestartHelper componentRestartHelper) {
+            @Nonnull final ComponentRestartHelper componentRestartHelper,
+            @Nonnull final StalenessInformationProvider stalenessInformationProvider) {
         this.planExecutorService = planExecutorService;
         this.realtimeExecutorService = realtimeExecutorService;
         this.livePipelineFactory = topologyPipelineFactory;
@@ -136,6 +156,7 @@ public class TopologyPipelineExecutorService implements AutoCloseable {
         this.realtimePipelineQueue = realtimePipelineQueue;
         this.planPipelineQueue = planPipelineQueue;
         this.targetStore = targetStore;
+        this.stalenessInformationProvider = stalenessInformationProvider;
         for (int i = 0; i < concurrentPipelinesAllowed; ++i) {
             planExecutorService.submit(new TopologyPipelineWorker(planPipelineQueue,
                     notificationSender, componentRestartHelper));
@@ -227,10 +248,15 @@ public class TopologyPipelineExecutorService implements AutoCloseable {
             @Nonnull final TopologyInfo pendingTopologyInfo,
             @Nonnull final List<TopoBroadcastManager> additionalBroadcastManagers,
             @Nonnull final StitchingJournalFactory journalFactory) throws QueueCapacityExceededException {
-        final TopologyPipeline<EntityStore, TopologyBroadcastInfo> pipeline =
-            livePipelineFactory.liveTopology(pendingTopologyInfo, additionalBroadcastManagers, journalFactory);
-        return realtimePipelineQueue.queuePipeline(pipeline::getTopologyInfo,
-            () -> pipeline.run(entityStore));
+        final TopologyPipeline<PipelineInput, TopologyBroadcastInfo> pipeline =
+                livePipelineFactory.liveTopology(pendingTopologyInfo, additionalBroadcastManagers, journalFactory);
+
+        return realtimePipelineQueue.queuePipeline(pipeline::getTopologyInfo, () -> pipeline.run(
+                PipelineInput
+                        .builder()
+                        .setEntityStore(entityStore)
+                        .setStalenessProvider(stalenessInformationProvider)
+                        .build()));
     }
 
     /**
@@ -252,11 +278,15 @@ public class TopologyPipelineExecutorService implements AutoCloseable {
             @Nullable final PlanScope scope,
             @Nullable final Map<Integer, EntityOids> userScopeEntityTypes,
             @Nonnull final StitchingJournalFactory journalFactory) throws QueueCapacityExceededException {
-        final TopologyPipeline<EntityStore, TopologyBroadcastInfo> pipeline =
+        final TopologyPipeline<PipelineInput, TopologyBroadcastInfo> pipeline =
                 planPipelineFactory.planOverLiveTopology(pendingTopologyInfo, changes, scope,
                         userScopeEntityTypes, journalFactory);
-        return planPipelineQueue.queuePipeline(pipeline::getTopologyInfo,
-            () -> pipeline.run(entityStore));
+        return planPipelineQueue.queuePipeline(pipeline::getTopologyInfo, () -> pipeline.run(
+                PipelineInput
+                        .builder()
+                        .setEntityStore(entityStore)
+                        .setStalenessProvider(defaultStalenessInformationProvider)
+                        .build()));
     }
 
     /**

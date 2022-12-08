@@ -296,11 +296,11 @@ public class LivePipelineFactory {
      * @return The {@link TopologyPipeline}. This pipeline will accept an {@link EntityStore}
      *         and return the {@link TopologyBroadcastInfo} of the successful broadcast.
      */
-    TopologyPipeline<EntityStore, TopologyBroadcastInfo> liveTopology(
+    TopologyPipeline<PipelineInput, TopologyBroadcastInfo> liveTopology(
             @Nonnull final TopologyInfo topologyInfo,
             @Nonnull final List<TopoBroadcastManager> additionalBroadcastManagers,
             @Nonnull final StitchingJournalFactory journalFactory) {
-        final TopologyPipeline<EntityStore, TopologyBroadcastInfo> liveTopology =
+        final TopologyPipeline<PipelineInput, TopologyBroadcastInfo> liveTopology =
             buildLiveTopology(topologyInfo, additionalBroadcastManagers, journalFactory);
         if (broadcastCount == 1) {
             logger.info("\n" + liveTopology.tabularDescription("Live Topology Pipeline"));
@@ -325,7 +325,7 @@ public class LivePipelineFactory {
      * @return The {@link TopologyPipeline}. This pipeline will accept an {@link EntityStore}
      *         and return the {@link TopologyBroadcastInfo} of the successful broadcast.
      */
-    private TopologyPipeline<EntityStore, TopologyBroadcastInfo> buildLiveTopology(
+    private TopologyPipeline<PipelineInput, TopologyBroadcastInfo> buildLiveTopology(
         @Nonnull TopologyInfo topologyInfo,
         @Nonnull List<TopoBroadcastManager> additionalBroadcastManagers,
         @Nonnull StitchingJournalFactory journalFactory) {
@@ -352,13 +352,13 @@ public class LivePipelineFactory {
      * @return The {@link TopologyPipeline}. This pipeline will accept an {@link EntityStore}
      *         and return the {@link TopologyBroadcastInfo} of the successful broadcast.
      */
-    private TopologyPipeline<EntityStore, TopologyBroadcastInfo> liveXLTopology(
+    private TopologyPipeline<PipelineInput, TopologyBroadcastInfo> liveXLTopology(
             @Nonnull final TopologyInfo topologyInfo,
             @Nonnull final TopologyPipelineContext context,
             @Nonnull final StitchingJournalFactory journalFactory,
             @Nonnull final List<TopoBroadcastManager> managers) {
         final MatrixInterface mi = matrix.copy();
-        return new TopologyPipeline<>(PipelineDefinition.<EntityStore, TopologyBroadcastInfo, TopologyPipelineContext>newBuilder(context)
+        return new TopologyPipeline<>(PipelineDefinition.<PipelineInput, TopologyBroadcastInfo, TopologyPipelineContext>newBuilder(context)
                 .initialContextMember(TopologyPipelineContextMembers.GROUP_RESOLVER,
                     () -> new GroupResolver(searchResolver, groupServiceClient, searchFilterResolver))
                 .addStage(new DCMappingStage(discoveredGroupUploader))
@@ -424,11 +424,11 @@ public class LivePipelineFactory {
      * @return The {@link TopologyPipeline}. This pipeline will accept an {@link EntityStore}
      *         and return the {@link TopologyBroadcastInfo} of the successful broadcast.
      */
-    private TopologyPipeline<EntityStore, TopologyBroadcastInfo> liveDevFreemiumTopology(
+    private TopologyPipeline<PipelineInput, TopologyBroadcastInfo> liveDevFreemiumTopology(
             @Nonnull final TopologyPipelineContext context,
             @Nonnull final StitchingJournalFactory journalFactory,
             @Nonnull final List<TopoBroadcastManager> managers) {
-        return new TopologyPipeline<>(PipelineDefinition.<EntityStore, TopologyBroadcastInfo, TopologyPipelineContext>newBuilder(context)
+        return new TopologyPipeline<>(PipelineDefinition.<PipelineInput, TopologyBroadcastInfo, TopologyPipelineContext>newBuilder(context)
             .initialContextMember(TopologyPipelineContextMembers.GROUP_RESOLVER,
                 () -> new GroupResolver(searchResolver, groupServiceClient, searchFilterResolver))
             .addStage(new DCMappingStage(discoveredGroupUploader))
