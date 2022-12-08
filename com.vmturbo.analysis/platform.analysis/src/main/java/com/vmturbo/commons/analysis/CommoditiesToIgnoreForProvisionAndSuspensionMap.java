@@ -22,6 +22,8 @@ public class CommoditiesToIgnoreForProvisionAndSuspensionMap {
             commoditiesToIgnoreForProvisionAndSuspensionMap =
             new ImmutableMap.Builder<Integer, Set<Integer>>().put(EntityType.PHYSICAL_MACHINE_VALUE,
                     ImmutableSet.of(CommodityType.CPU_PROVISIONED_VALUE,
+                            CommodityType.MEM_PROVISIONED_VALUE)).put(EntityType.CLUSTER_VALUE,
+                    ImmutableSet.of(CommodityType.CPU_PROVISIONED_VALUE,
                             CommodityType.MEM_PROVISIONED_VALUE)).build();
 
     public Map<Integer, Set<Integer>> getCommoditiesToIgnoreForProvisionAndSuspensionMap() {
