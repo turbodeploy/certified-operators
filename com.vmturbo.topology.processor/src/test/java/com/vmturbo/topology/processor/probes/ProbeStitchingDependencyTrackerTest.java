@@ -3,6 +3,7 @@ package com.vmturbo.topology.processor.probes;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
+import org.junit.Assert;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
@@ -12,6 +13,8 @@ import com.google.common.collect.Sets;
 import com.vmturbo.platform.sdk.common.util.ProbeCategory;
 import com.vmturbo.platform.sdk.common.util.SDKProbeType;
 import com.vmturbo.topology.processor.probes.ProbeStitchingDependencyTracker.Builder;
+
+import java.util.Set;
 
 /**
  * Tests for {@link ProbeStitchingDependencyTracker}.
@@ -189,5 +192,13 @@ public class ProbeStitchingDependencyTrackerTest {
                         .getDefaultStitchingDependencyTracker()
                         .getProbeCategoriesThatStitchBefore(ProbeCategory.CLOUD_MANAGEMENT)
         );
+    }
+
+    @Test
+    public void testProbeScopeForCustomCategory() {
+        Set<ProbeCategory> probeScope = ProbeStitchingDependencyTracker
+                .getDefaultStitchingDependencyTracker()
+                .getProbeCategoriesThatStitchBefore(ProbeCategory.CUSTOM);
+        Assert.assertTrue(probeScope.contains(ProbeCategory.APPLICATION_SERVER));
     }
 }
