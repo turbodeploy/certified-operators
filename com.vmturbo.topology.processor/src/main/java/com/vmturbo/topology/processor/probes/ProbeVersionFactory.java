@@ -60,14 +60,14 @@ public class ProbeVersionFactory {
      *  Error messages specific to CLoud Native probes.
      */
     enum CloudNativeAdditionalErrorMessage {
-        CPU_THROTTLING_BREAKING_CHANGE_MESSAGE("Container CPU resize actions will be disabled.");
+        CPU_THROTTLING_BREAKING_CHANGE_MESSAGE("Container CPU limit resize actions will be disabled.");
         private final String message;
 
         CloudNativeAdditionalErrorMessage(String message) {
             this.message = message;
         }
 
-        public String getMessage() {
+        public String get() {
             return message;
         }
     }
@@ -169,7 +169,7 @@ public class ProbeVersionFactory {
                     .anyMatch(accountValue -> accountValue.getStringValue().contains(CLOUD_NATIVE_PROBE_NAME))
                 && serverSemver.isGreaterThanOrEqualTo(CPU_THROTTLING_BREAKING_CHANGE_VERSION)
                 && probeSemver.isLowerThan(CPU_THROTTLING_BREAKING_CHANGE_VERSION)) {
-            msg = msg + " " + CloudNativeAdditionalErrorMessage.CPU_THROTTLING_BREAKING_CHANGE_MESSAGE.getMessage();
+            msg = msg + " " + CloudNativeAdditionalErrorMessage.CPU_THROTTLING_BREAKING_CHANGE_MESSAGE.get();
         }
 
         return Pair.create(HealthState.MAJOR, msg);
