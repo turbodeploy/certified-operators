@@ -732,14 +732,23 @@ public class TopologyDataDefinitionStore implements DiagsRestorable<DSLContext> 
      * @param id the OID of the {@link TopologyDataDefinition} to delete.
      * @return boolean indicating whether or not the {@link TopologyDataDefinition} was deleted.
      */
-    public boolean deleteTopologyDataDefinition(long id) {
+    public boolean deleteTopologyDataDefinition(long id) throws StoreOperationException {
+        final SetOnce<StoreOperationException> exception = new SetOnce<>();
         return dslContext.transactionResult(configuration -> {
             DSLContext transactionDsl = DSL.using(configuration);
-            return deleteTopologyDataDefinition(transactionDsl, id);
+            boolean result = false;
+            try {
+                result = deleteTopologyDataDefinition(transactionDsl, id);
+            } catch (StoreOperationException e) {
+                throw new StoreOperationException(Status.ALREADY_EXISTS, "A topology data "
+                        + "definition that conflicts with the updated definition already exists.");
+            }
+            return result;
         });
     }
 
-    private boolean deleteTopologyDataDefinition(@Nonnull DSLContext context, final long id) {
+    private boolean deleteTopologyDataDefinition(@Nonnull DSLContext context, final long id)
+            throws StoreOperationException {
         Optional<TopologyDataDefinition> existingDef = getTopologyDataDefinition(context, id);
         if (!existingDef.isPresent()) {
             logger.warn("Attempt to delete non-existing TopologyDataDefinition with OID {}.",
@@ -752,6 +761,12 @@ public class TopologyDataDefinitionStore implements DiagsRestorable<DSLContext> 
             context.deleteFrom(MANUAL_TOPO_DATA_DEFS)
                     .where(MANUAL_TOPO_DATA_DEFS.ID.eq(id))
                     .execute();
+            try {
+                this.identityStore.removeItemOids(Collections.singleton(id));
+            } catch (IdentityStoreException e) {
+                throw new StoreOperationException(Status.INVALID_ARGUMENT,
+                        e.getMessage(), e);
+            }
         } else {
             context.deleteFrom(AUTO_TOPO_DATA_DEFS)
                     .where(AUTO_TOPO_DATA_DEFS.ID.eq(id))
