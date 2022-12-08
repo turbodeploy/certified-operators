@@ -1341,6 +1341,20 @@ public final class Economy implements UnmodifiableEconomy, Serializable {
     }
 
     /**
+     * return if the commodity should be ignored for provision and suspension purposes.
+     *
+     * @param commoditySpecification commoditySpecification of interest.
+     * @param seller the seller the commoditySpecification belongs to.
+     * @return true if the commodity should be skipped.
+     */
+    public boolean ignoreCommodityForProvisionAndSuspension(CommoditySpecification commoditySpecification,
+            Trader seller) {
+        Set<Integer> commoditiesToIgnore = getCommoditiesToIgnoreForProvisionAndSuspensionEntry(
+                seller.getType());
+        return commoditiesToIgnore.contains(commoditySpecification.getBaseType());
+    }
+
+    /**
      * Merge the Contexts of all scaling group members in each group. This also marks scaling
      * groups that are not currently consistently sized. This is used by Placement to determine
      * whether to force the group leader to generate a Move action.

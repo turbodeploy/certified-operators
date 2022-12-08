@@ -233,9 +233,9 @@ public class Ledger {
                 // of the entity.
                 continue;
             }
-            CommoditySpecification commoditySpecification = seller.getBasketSold().get(index);
-            Set<Integer> commoditiesToIgnore = economy.getCommoditiesToIgnoreForProvisionAndSuspensionEntry(seller.getType());
-            if (commoditiesToIgnore.contains(commoditySpecification.getBaseType())) {
+            CommoditySpecification commoditySpecification = seller.getBasketSold().get(
+                    index);
+            if (economy.ignoreCommodityForProvisionAndSuspension(commoditySpecification, seller)) {
                 continue;
             }
             double commSoldUtil = commSold.getQuantity()/commSold.getEffectiveCapacity();
