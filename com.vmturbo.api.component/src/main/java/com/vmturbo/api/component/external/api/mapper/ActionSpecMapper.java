@@ -679,7 +679,7 @@ public class ActionSpecMapper {
                 if (!StringUtils.isBlank(decisionUserUUid)) {
                     actionApiDTO.setUserName(getUserName(decisionUserUUid));
                     // update actionMode based on decision uer id
-                    updateActionMode(actionApiDTO, decisionUserUUid);
+                    updateActionMode(actionApiDTO, decisionUserUUid, recommendation);
                 }
             }
         }
@@ -1097,15 +1097,17 @@ public class ActionSpecMapper {
 
     /**
      * Update action mode based on decision user id.
-     * Rule: if the decision user id is "SYSTEM", set the action mode to "automatic"; otherwise
-     * set it to "MANUAL".
+     * Rule: if the decision user id is "SYSTEM" or if the action is triggered by a schedule from
+     * Suspend, set the action mode to "automatic"; otherwise set it to "MANUAL".
      *
      * @param actionApiDTO action API DTO
      * @param decisionUserUUid decision user id
+     * @param recommendation recommended action
      */
     private void updateActionMode(@Nonnull final ActionApiDTO actionApiDTO,
-                                  @Nonnull final String decisionUserUUid) {
-        if (AuditLogUtils.SYSTEM.equals(decisionUserUUid)) {
+            @Nonnull final String decisionUserUUid, Action recommendation) {
+        if (AuditLogUtils.SYSTEM.equals(decisionUserUUid) || (recommendation.hasExecutorInfo()
+                && recommendation.getExecutorInfo().hasSchedule())) {
             actionApiDTO.setActionMode(ActionMode.AUTOMATIC);
         } else {
             actionApiDTO.setActionMode(ActionMode.MANUAL);
