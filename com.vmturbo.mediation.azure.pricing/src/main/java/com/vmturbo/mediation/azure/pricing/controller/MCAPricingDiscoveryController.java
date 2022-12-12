@@ -39,6 +39,7 @@ import com.vmturbo.mediation.azure.pricing.stages.OpenZipEntriesStage;
 import com.vmturbo.mediation.azure.pricing.stages.PlanFallbackStage;
 import com.vmturbo.mediation.azure.pricing.stages.RegroupByTypeStage;
 import com.vmturbo.mediation.azure.pricing.stages.SelectZipEntriesStage;
+import com.vmturbo.mediation.azure.pricing.stages.meterprocessing.DBStorageMeterProcessingStage;
 import com.vmturbo.mediation.azure.pricing.stages.meterprocessing.FixedSizeStorageTierProcessingStage;
 import com.vmturbo.mediation.azure.pricing.stages.meterprocessing.IPMeterProcessingStage;
 import com.vmturbo.mediation.azure.pricing.stages.meterprocessing.InstanceTypeProcessingStage;
@@ -195,6 +196,7 @@ public class MCAPricingDiscoveryController extends
                 .addStage(new FixedSizeStorageTierProcessingStage(MCAPricingProbeStage.FIXED_SIZE_STORAGE_TIER_PRICE_PROCESSOR))
                 .addStage(new LinearSizeStorageTierProcessingStage(MCAPricingProbeStage.LINEAR_SIZE_STORAGE_TIER_PRICE_PROCESSOR))
                 .addStage(new UltraDiskStorageTierMeterProcessingStage(MCAPricingProbeStage.ULTRA_DISK_STORAGE_TIER))
+                .addStage(new DBStorageMeterProcessingStage(MCAPricingProbeStage.DB_STORAGE_METER_PROCESSOR))
                 .finalStage(new AssignPricingIdentifiersStage(MCAPricingProbeStage.ASSIGN_IDENTIFIERS,
                     MCA_PLANID_MAP)));
     }

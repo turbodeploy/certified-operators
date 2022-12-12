@@ -51,6 +51,11 @@
             <version>${revision}</version>
         </dependency>
         <dependency>
+            <groupId>com.vmturbo</groupId>
+            <artifactId>com.vmturbo.mediation.azure.cost</artifactId>
+            <version>${revision}</version>
+        </dependency>
+        <dependency>
             <!-- https://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2022-31684 -->
             <groupId>io.projectreactor.netty</groupId>
             <artifactId>reactor-netty-http</artifactId>
