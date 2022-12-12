@@ -93,11 +93,19 @@ public class SchedulerTest {
             Mockito.spy(new DelegationExecutor());
 
     @Spy
+    private final ScheduledExecutorService fullDiscoveryExecutorSpy4 =
+            Mockito.spy(new DelegationExecutor());
+
+    @Spy
     private final ScheduledExecutorService incrementalDiscoveryExecutorSpy1 =
             Mockito.spy(new DelegationExecutor());
 
     @Spy
     private final ScheduledExecutorService incrementalDiscoveryExecutorSpy2 =
+            Mockito.spy(new DelegationExecutor());
+
+    @Spy
+    private final ScheduledExecutorService incrementalDiscoveryExecutorSpy4 =
             Mockito.spy(new DelegationExecutor());
 
     @Spy
@@ -114,9 +122,12 @@ public class SchedulerTest {
     private static final long SCHEDULED_TIMEOUT_SECONDS = 10;
     private static final long INITIAL_BROADCAST_INTERVAL_MINUTES = 1;
     private static final int  NUM_DISCOVERIES_SKIPPED_BEFORE_LOGGING = 10;
+    private static final int PROBE_4_REDISCOVERY_INTERVAL = 120;
+    private static final int PROBE_4_INCREMENTAL_REDISCOVERY_INTERVAL = 5;
     private static final long PROBE_ID_1 = 1L;
     private static final long PROBE_ID_2 = 2L;
     private static final long PROBE_ID_3 = 3L;
+    private static final long PROBE_ID_4 = 4L;
     private static final String PROBE_TYPE_1 = "type 1";
     private static final ProbeInfo PROBE_TYPE_1_INFO = ProbeInfo.newBuilder()
             .setProbeType(PROBE_TYPE_1)
@@ -134,8 +145,17 @@ public class SchedulerTest {
             .setProbeType(PROBE_TYPE_3)
             .setProbeCategory(ProbeCategory.HYPERVISOR.getCategory())
             .build();
+    private static final String PROBE_TYPE_4 = "type 4";
+    private static final ProbeInfo PROBE_TYPE_4_INFO = ProbeInfo.newBuilder()
+            .setProbeType(PROBE_TYPE_4)
+            .setProbeCategory(ProbeCategory.HYPERVISOR.getCategory())
+            .setFullRediscoveryIntervalSeconds(PROBE_4_REDISCOVERY_INTERVAL)
+            .setIncrementalRediscoveryIntervalSeconds(PROBE_4_INCREMENTAL_REDISCOVERY_INTERVAL)
+            .build();
+
     private final long targetId = 1234;
     private final long targetId2 = 1235;
+    private final long targetId4 = 1237;
 
     @Rule
     public ExpectedException expectedException = ExpectedException.none();
@@ -149,7 +169,11 @@ public class SchedulerTest {
             return fullDiscoveryExecutorSpy1;
         } else if (name.startsWith(PROBE_TYPE_2)) {
             return fullDiscoveryExecutorSpy2;
-        } else {
+        }
+        else if (name.startsWith(PROBE_TYPE_4)) {
+            return fullDiscoveryExecutorSpy4;
+        }
+        else {
             return null;
         }
     }
@@ -159,6 +183,8 @@ public class SchedulerTest {
             return incrementalDiscoveryExecutorSpy1;
         } else if (name.startsWith(PROBE_TYPE_2)) {
             return incrementalDiscoveryExecutorSpy2;
+        } else if (name.startsWith(PROBE_TYPE_4)) {
+            return incrementalDiscoveryExecutorSpy4;
         } else {
             return null;
         }
@@ -176,13 +202,20 @@ public class SchedulerTest {
         when(target2.getId()).thenReturn(targetId2);
         when(target2.getProbeId()).thenReturn(PROBE_ID_3);
         when(target2.getProbeInfo()).thenReturn(PROBE_TYPE_3_INFO);
+        final Target target4 = mock(Target.class);
+        when(target4.getId()).thenReturn(targetId4);
+        when(target4.getProbeId()).thenReturn(PROBE_ID_4);
+        when(target4.getProbeInfo()).thenReturn(PROBE_TYPE_4_INFO);
 
         when(targetStore.getTarget(targetId)).thenReturn(Optional.of(target));
         when(targetStore.getTarget(targetId2)).thenReturn(Optional.of(target2));
+        when(targetStore.getTarget(targetId4)).thenReturn(Optional.of(target4));
+        when(targetStore.getProbeTargets(PROBE_ID_4)).thenReturn(ImmutableList.of(target4));
 
         when(probeStore.getProbe(PROBE_ID_1)).thenAnswer(answer -> Optional.of(PROBE_TYPE_1_INFO));
         when(probeStore.getProbe(PROBE_ID_2)).thenAnswer(answer -> Optional.of(PROBE_TYPE_2_INFO));
         when(probeStore.getProbe(PROBE_ID_3)).thenReturn(Optional.of(PROBE_TYPE_3_INFO));
+        when(probeStore.getProbe(PROBE_ID_4)).thenReturn(Optional.of(PROBE_TYPE_4_INFO));
 
         when(keyValueStore.get(anyString())).thenReturn(Optional.empty());
 
@@ -205,8 +238,10 @@ public class SchedulerTest {
     public void cleanup() {
         fullDiscoveryExecutorSpy1.shutdownNow();
         fullDiscoveryExecutorSpy2.shutdownNow();
+        fullDiscoveryExecutorSpy4.shutdownNow();
         incrementalDiscoveryExecutorSpy1.shutdownNow();
         incrementalDiscoveryExecutorSpy2.shutdownNow();
+        incrementalDiscoveryExecutorSpy4.shutdownNow();
         broadcastExecutorSpy.shutdownNow();
         expirationExecutorSpy.shutdownNow();
     }
@@ -841,6 +876,76 @@ public class SchedulerTest {
         when(discovery.getCompletionTime()).thenReturn(null);
         scheduler.logLaggingDiscoveries();
         // no assertion needed, we just want to make sure no exception was thrown
+    }
+
+    /**
+     * Test that when a probe registers, if we don't already have a schedule for a target of that
+     * probe type, we create both full and incremental discovery intervals,
+     * if the ProbeInfo has them.
+     *
+     * @throws Exception if something goes wrong
+     */
+    @Test
+    public void testProbeRegistrationCreatesFullAndIncrementalDiscovery() throws Exception {
+        final long fullMillis = TimeUnit.MILLISECONDS
+                .convert(PROBE_4_REDISCOVERY_INTERVAL, TimeUnit.SECONDS);
+        final ScheduledFuture<?> mockFuture = mock(ScheduledFuture.class);
+        Mockito.doReturn(mockFuture).when(fullDiscoveryExecutorSpy4).scheduleAtFixedRate(
+                any(), Mockito.anyLong(), eq(fullMillis), any());
+
+        final long incrementalMillis = TimeUnit.MILLISECONDS
+                .convert(PROBE_4_INCREMENTAL_REDISCOVERY_INTERVAL, TimeUnit.SECONDS);
+        final ScheduledFuture<?> mockFuture2 = mock(ScheduledFuture.class);
+        Mockito.doReturn(mockFuture2).when(incrementalDiscoveryExecutorSpy4).scheduleAtFixedRate(
+                any(), Mockito.anyLong(), eq(incrementalMillis), any());
+
+        scheduler.onProbeRegistered(PROBE_ID_4, PROBE_TYPE_4_INFO);
+        verify(keyValueStore).put(
+                scheduleKey(Long.toString(targetId4)),
+                new Gson().toJson(new TargetDiscoveryScheduleData(fullMillis,
+                        true))
+        );
+        verify(keyValueStore).put(
+                scheduleKey(Long.toString(targetId4)),
+                new Gson().toJson(new TargetDiscoveryScheduleData(fullMillis,
+                        incrementalMillis, true))
+        );
+    }
+
+    /**
+     * Test that if a full discovery schedule already exists when a probe registers and adds
+     * an incremental discovery interval, the full discovery interval is preserved and not
+     * overwritten by the new full discovery interval.
+     *
+     * @throws Exception if something goes wrong.
+     */
+    @Test
+    public void testProbeRegistersFullScheduleExists() throws Exception {
+        Target target = targetStore.getTarget(targetId4).get();
+        when(targetStore.getAll()).thenReturn(ImmutableList.of(target));
+        when(keyValueStore.getByPrefix(Scheduler.SCHEDULE_KEY_OFFSET)).thenReturn(
+                Collections.singletonMap(Scheduler.SCHEDULE_KEY_OFFSET + targetId4,
+                        new Gson().toJson(new TargetDiscoveryScheduleData(TEST_SCHEDULE_MILLIS,
+                                false))));
+        final long incrementalMillis = TimeUnit.MILLISECONDS
+                .convert(PROBE_4_INCREMENTAL_REDISCOVERY_INTERVAL, TimeUnit.SECONDS);
+        final ScheduledFuture<?> mockFuture2 = mock(ScheduledFuture.class);
+        Mockito.doReturn(mockFuture2).when(incrementalDiscoveryExecutorSpy4).scheduleAtFixedRate(
+                any(), Mockito.anyLong(), eq(incrementalMillis), any());
+
+        Scheduler scheduler = new Scheduler(operationManager, targetStore, probeStore,
+                topologyHandler, keyValueStore, journalFactory, (name) -> fullDiscoveryExecutorSpy1,
+                (name) -> incrementalDiscoveryExecutorSpy1, broadcastExecutorSpy, expirationExecutorSpy,
+                INITIAL_BROADCAST_INTERVAL_MINUTES, NUM_DISCOVERIES_SKIPPED_BEFORE_LOGGING);
+        scheduler.initialize();
+
+        scheduler.onProbeRegistered(PROBE_ID_4, PROBE_TYPE_4_INFO);
+        verify(keyValueStore).put(
+                scheduleKey(Long.toString(targetId4)),
+                new Gson().toJson(new TargetDiscoveryScheduleData(TEST_SCHEDULE_MILLIS,
+                        incrementalMillis, false))
+        );
+
     }
 
     /**
