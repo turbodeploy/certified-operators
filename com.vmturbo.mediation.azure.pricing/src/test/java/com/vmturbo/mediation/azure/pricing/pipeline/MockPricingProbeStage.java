@@ -108,6 +108,16 @@ public enum MockPricingProbeStage implements ProbeStageEnum {
     ULTRA_DISK_STORAGE_TIER("Ultra Disk Storage Tier Processing"),
 
     /**
+     * Process DBStorage meters.
+     */
+    DB_STORAGE_METER_PROCESSOR("DB Storage meter Processing"),
+
+    /**
+     * Fake stage for AbstractDbTierMeterProcessor.
+     */
+    ABSTRACT_DB_METER_PROCESSOR("AbstractDbTierMeterProcessor test"),
+
+    /**
      * Assign pricing identifiers to plans and return a DiscoveredPricing result.
      */
     ASSIGN_IDENTIFIERS("Assign pricing identifiers");
@@ -149,5 +159,7 @@ public enum MockPricingProbeStage implements ProbeStageEnum {
         FIXED_SIZE_STORAGE_TIER_PRICE_PROCESSOR,
         LINEAR_SIZE_STORAGE_TIER_PRICE_PROCESSOR,
         ULTRA_DISK_STORAGE_TIER,
+        DB_STORAGE_METER_PROCESSOR,
+        ABSTRACT_DB_METER_PROCESSOR,
         ASSIGN_IDENTIFIERS);
 }
