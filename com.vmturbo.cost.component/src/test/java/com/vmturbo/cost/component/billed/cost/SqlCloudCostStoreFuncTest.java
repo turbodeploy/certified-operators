@@ -4,7 +4,9 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyLong;
+import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -13,6 +15,7 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.sql.SQLException;
 import java.time.Duration;
+import java.time.Instant;
 import java.util.List;
 
 import javax.annotation.Nonnull;
@@ -28,6 +31,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jooq.DSLContext;
 import org.jooq.SQLDialect;
+import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -60,8 +64,11 @@ import com.vmturbo.cost.component.billedcosts.TagGroupStore;
 import com.vmturbo.cost.component.billedcosts.TagIdentityService;
 import com.vmturbo.cost.component.billedcosts.TagStore;
 import com.vmturbo.cost.component.db.Cost;
+import com.vmturbo.cost.component.db.Tables;
 import com.vmturbo.cost.component.db.TestCostDbEndpointConfig;
+import com.vmturbo.cost.component.scope.SqlCloudCostScopeIdReplacementLog;
 import com.vmturbo.cost.component.scope.SqlCloudScopeIdentityStore;
+import com.vmturbo.platform.common.dto.CommonDTO;
 import com.vmturbo.platform.sdk.common.CostBilling.CloudBillingData.CloudBillingBucket.Granularity;
 import com.vmturbo.platform.sdk.common.CostBilling.CostTagGroup;
 import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
@@ -105,6 +112,8 @@ public class SqlCloudCostStoreFuncTest extends MultiDbTestBase {
     private DataQueueFactory dataQueueFactory;
 
     private TimeFrameCalculator timeFrameCalculator;
+
+    private SqlCloudCostScopeIdReplacementLog sqlCloudCostScopeIdReplacementLog;
 
 
     /**
@@ -150,6 +159,10 @@ public class SqlCloudCostStoreFuncTest extends MultiDbTestBase {
         //set up the time frame calculator
         timeFrameCalculator = mock(TimeFrameCalculator.class);
         when(timeFrameCalculator.millis2TimeFrame(anyLong())).thenReturn(TimeFrame.HOUR);
+
+        sqlCloudCostScopeIdReplacementLog = mock(SqlCloudCostScopeIdReplacementLog.class);
+        when(sqlCloudCostScopeIdReplacementLog.getReplacedScopeId(anyLong(), any(Instant.class)))
+            .thenAnswer(i -> i.getArguments()[0]);
     }
 
     /**
@@ -200,6 +213,38 @@ public class SqlCloudCostStoreFuncTest extends MultiDbTestBase {
         assertThat(retrievedCostDataList, hasSize(1));
         final BilledCostData retrievedCostData = retrievedCostDataList.get(0);
         compareCostData(retrievedCostData, persistedCostData);
+    }
+
+    /**
+     * Test that {@link CloudCostStore#storeCostData(BilledCostData)} looks up
+     * {@link SqlCloudCostScopeIdReplacementLog#getReplacedScopeId(long, Instant)} for swapping out an alias scope_id
+     * with a real scope_id.
+     *
+     * @throws Exception Unexpected exception.
+     */
+    @Test
+    public void testPersistenceWithScopeIdReplacement() throws Exception {
+        final long aliasOid = 1L;
+        final long realOid = 2L;
+        when(sqlCloudCostScopeIdReplacementLog.getReplacedScopeId(eq(aliasOid), any(Instant.class)))
+            .thenReturn(realOid);
+
+        final SqlCloudCostStore cloudCostStore = createCostStore(DEFAULT_PERSISTENCE_CONFIG);
+        final BilledCostData persistedCostData = BilledCostData.newBuilder()
+            .setGranularity(Granularity.DAILY)
+            .addCostBuckets(BilledCostBucket.newBuilder()
+                .addCostItems(BilledCostItem.newBuilder()
+                    .setEntityId(aliasOid)
+                    .setEntityType(CommonDTO.EntityDTO.EntityType.VIRTUAL_MACHINE_VALUE)
+                    .build())
+                .build())
+            .build();
+
+        cloudCostStore.storeCostData(persistedCostData);
+
+        Assert.assertTrue(dsl.selectFrom(Tables.CLOUD_COST_DAILY)
+            .where(Tables.CLOUD_COST_DAILY.SCOPE_ID.eq(realOid))
+            .fetch().isNotEmpty());
     }
 
     /**
@@ -390,6 +435,7 @@ public class SqlCloudCostStoreFuncTest extends MultiDbTestBase {
         return new SqlCloudCostStore(partitioningManager,
                 tagGroupIdentityService,
                 cloudScopeIdentityProvider,
+                sqlCloudCostScopeIdReplacementLog,
                 dataQueueFactory,
                 timeFrameCalculator,
                 dsl,

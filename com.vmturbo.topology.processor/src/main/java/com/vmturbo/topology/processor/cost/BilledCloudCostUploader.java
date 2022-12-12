@@ -545,9 +545,11 @@ public class BilledCloudCostUploader implements DiagsRestorable<Void> {
                 final BilledCostItem.Builder billedCostItem = BilledCostItem.newBuilder();
 
                 if (cloudBillingDataPoint.hasEntityId()) {
+                    // order of resolveTargetLocalOid vis-a-vis resolveBillingEntityOid is important for Azure,
+                    // resolveTargetLocalOid must be used before resolveBillingEntityOid.
                     final Optional<Long> entityOid =
-                            resolveOid(cloudBillingDataPoint.getEntityId(), resolveBillingEntityOid,
-                                    resolveTargetLocalOid);
+                            resolveOid(cloudBillingDataPoint.getEntityId(), resolveTargetLocalOid,
+                                resolveBillingEntityOid);
 
                     // Entity-level cost belonging to an undiscovered entity is ignored.
                     // For now, entities are discovered by metrics targets, not billing targets,

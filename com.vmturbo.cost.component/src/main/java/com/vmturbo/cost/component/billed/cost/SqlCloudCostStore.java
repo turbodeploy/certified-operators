@@ -29,6 +29,7 @@ import com.vmturbo.cost.component.TableDiagsRestorable;
 import com.vmturbo.cost.component.billedcosts.TagGroupIdentityService;
 import com.vmturbo.cost.component.db.Tables;
 import com.vmturbo.cost.component.db.tables.records.CloudCostDailyRecord;
+import com.vmturbo.cost.component.scope.ScopeIdReplacementLog;
 import com.vmturbo.platform.sdk.common.CostBilling.CloudBillingData.CloudBillingBucket.Granularity;
 import com.vmturbo.sql.utils.partition.IPartitioningManager;
 
@@ -59,6 +60,7 @@ public class SqlCloudCostStore implements CloudCostStore {
      * @param partitioningManager The partitioning manager.
      * @param tagGroupIdentityService Tag group identity service.
      * @param scopeIdentityProvider The scope identity provider.
+     * @param scopeIdReplacementLog Scope id replacement log to persist and retrieve scope id replacements.
      * @param dataQueueFactory The data queue factory.
      * @param timeFrameCalculator The stats query executor.
      * @param dsl The DSL context.
@@ -67,13 +69,15 @@ public class SqlCloudCostStore implements CloudCostStore {
     public SqlCloudCostStore(@Nonnull IPartitioningManager partitioningManager,
                              @Nonnull TagGroupIdentityService tagGroupIdentityService,
                              @Nonnull CloudScopeIdentityProvider scopeIdentityProvider,
+                             @Nonnull ScopeIdReplacementLog scopeIdReplacementLog,
                              @Nonnull DataQueueFactory dataQueueFactory,
                              @Nonnull TimeFrameCalculator timeFrameCalculator,
                              @Nonnull DSLContext dsl,
                              @Nonnull BilledCostPersistenceConfig persistenceConfig) {
 
         this.dsl = Objects.requireNonNull(dsl);
-        this.costWriter = new BilledCostWriter(partitioningManager, tagGroupIdentityService, scopeIdentityProvider, dsl);
+        this.costWriter = new BilledCostWriter(partitioningManager, tagGroupIdentityService, scopeIdentityProvider,
+            Objects.requireNonNull(scopeIdReplacementLog), dsl);
         this.tagGroupIdentityService = Objects.requireNonNull(tagGroupIdentityService);
         this.statsQueryExecutor = new SqlCostStatsQueryExecutor(dsl, tagGroupIdentityService, timeFrameCalculator);
         persistenceSessionFactory = new SqlBilledCostPersistenceSession.Factory(
@@ -171,7 +175,6 @@ public class SqlCloudCostStore implements CloudCostStore {
     public boolean getExportCloudCostDiags() {
         return this.exportCloudCostDiags;
     }
-
 
     @Override
     public Set<Diagnosable> getDiagnosables(boolean collectHistoricalStats) {
