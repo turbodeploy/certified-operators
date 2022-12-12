@@ -94,6 +94,19 @@ public class SqlOidMappingStore implements RequiresDataInitialization {
             .onDuplicateKeyIgnore();
     }
 
+    /**
+     * Returns new {@link OidMapping} instances that are not present in the existingOidMappings collection.
+     *
+     * @param existingOidMappings {@link OidMapping} instances seen before.
+     * @return new {@link OidMapping} instances that are not present in the existingOidMappings collection.
+     */
+    @Nonnull
+    public Collection<OidMapping> getNewOidMappings(@Nonnull final Collection<OidMappingKey> existingOidMappings) {
+        return registeredOidMappings.values().stream()
+            .filter(mapping -> !existingOidMappings.contains(mapping.oidMappingKey()))
+            .collect(Collectors.toSet());
+    }
+
     private OidMapping recordToOidMapping(final OidMappingRecord record) {
         return ImmutableOidMapping.builder()
             .oidMappingKey(ImmutableOidMappingKey.builder()

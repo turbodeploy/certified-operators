@@ -1,10 +1,14 @@
 package com.vmturbo.cost.component.scope;
 
+import static com.vmturbo.cost.component.scope.ScopeIdReplacementTestUtils.ALIAS_OID;
+import static com.vmturbo.cost.component.scope.ScopeIdReplacementTestUtils.BROADCAST_TIME_UTC_MS;
+import static com.vmturbo.cost.component.scope.ScopeIdReplacementTestUtils.REAL_OID;
+import static com.vmturbo.cost.component.scope.ScopeIdReplacementTestUtils.createOidMapping;
 import static org.mockito.Matchers.anyCollectionOf;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 
-import java.time.Instant;
 import java.util.Collection;
 import java.util.Collections;
 
@@ -26,14 +30,12 @@ import com.vmturbo.components.api.test.GrpcTestServer;
  */
 public class UploadAliasedOidsRpcServiceTest {
 
-    private static final long ALIAS_OID = 111111L;
-    private static final long REAL_OID = 7777777L;
-    private static final long BROADCAST_TIME_UTC_MS = 1668046796000L;
-
     private AliasedOidsServiceBlockingStub client;
     private final SqlOidMappingStore sqlOidMappingStore = mock(SqlOidMappingStore.class);
-    private final UploadAliasedOidsRpcService uploadAliasedOidsRpcService
-        = new UploadAliasedOidsRpcService(sqlOidMappingStore);
+    private final SqlCloudCostScopeIdReplacementLog cloudCostScopeIdReplacementLog
+        = mock(SqlCloudCostScopeIdReplacementLog.class);
+    private final UploadAliasedOidsRpcService uploadAliasedOidsRpcService = new UploadAliasedOidsRpcService(
+        sqlOidMappingStore, Collections.singletonList(cloudCostScopeIdReplacementLog));
 
     /**
      * Grpc service stub initialization.
@@ -51,12 +53,13 @@ public class UploadAliasedOidsRpcServiceTest {
 
     /**
      * Test that when {@link UploadAliasedOidsRpcService#uploadAliasedOids(UploadAliasedOidsRequest, StreamObserver)}
-     * is invoked with unset parameters in {@link UploadAliasedOidsRequest} {@link Exception} is thrown.
+     * is invoked with unset parameters in {@link UploadAliasedOidsRequest},
+     * {@link SqlOidMappingStore#registerOidMappings(Collection)} is not invoked.
      */
     @Test
     public void testUploadAliasOidsUnsetBroadcastTimeUtcMs() {
-        Assert.assertThrows(RuntimeException.class,
-            () -> client.uploadAliasedOids(UploadAliasedOidsRequest.newBuilder().build()));
+        client.uploadAliasedOids(UploadAliasedOidsRequest.newBuilder().build());
+        Mockito.verify(sqlOidMappingStore, never()).registerOidMappings(anyCollectionOf(OidMapping.class));
     }
 
     /**
@@ -68,7 +71,7 @@ public class UploadAliasedOidsRpcServiceTest {
         client.uploadAliasedOids(UploadAliasedOidsRequest.newBuilder()
                 .setBroadcastTimeUtcMs(BROADCAST_TIME_UTC_MS)
             .build());
-        Mockito.verify(sqlOidMappingStore, times(0)).registerOidMappings(anyCollectionOf(OidMapping.class));
+        Mockito.verify(sqlOidMappingStore, never()).registerOidMappings(anyCollectionOf(OidMapping.class));
     }
 
     /**
@@ -78,32 +81,39 @@ public class UploadAliasedOidsRpcServiceTest {
      */
     @Test
     public void testUploadAliasOidsValidEntries() {
-        client.uploadAliasedOids(UploadAliasedOidsRequest.newBuilder()
-            .setBroadcastTimeUtcMs(BROADCAST_TIME_UTC_MS)
-                .putAliasIdToRealId(ALIAS_OID, REAL_OID)
-            .build());
-        Mockito.verify(sqlOidMappingStore).registerOidMappings(Collections.singleton(ImmutableOidMapping.builder()
-            .oidMappingKey(ImmutableOidMappingKey.builder()
-                .aliasOid(ALIAS_OID)
-                .realOid(REAL_OID)
-                .build())
-                .firstDiscoveredTimeMsUtc(Instant.ofEpochMilli(BROADCAST_TIME_UTC_MS))
-            .build()));
+        client.uploadAliasedOids(sampleRequest());
+        Mockito.verify(sqlOidMappingStore).registerOidMappings(Collections.singleton(
+            createOidMapping(ALIAS_OID, REAL_OID, BROADCAST_TIME_UTC_MS)));
     }
 
     /**
-     * Test that when {@link SqlOidMappingStore#registerOidMappings(Collection)} throws an {@link Exception}, then
-     * {@link Exception} is thrown on
-     * {@link UploadAliasedOidsRpcService#uploadAliasedOids(UploadAliasedOidsRequest, StreamObserver)}.
+     * Test that even when {@link SqlOidMappingStore#registerOidMappings(Collection)} throws an {@link Exception},
+     * {@link ScopeIdReplacementLog#persistScopeIdReplacements()} is invoked.
      */
     @Test
-    public void testUploadAliasOidsExceptionFromSqlOidMappingStore() {
+    public void testUploadAliasOidsExceptionFromSqlOidMappingStore() throws Exception {
         Mockito.doThrow(Exception.class).when(sqlOidMappingStore)
             .registerOidMappings(anyCollectionOf(OidMapping.class));
-        Assert.assertThrows(RuntimeException.class,
-            () -> client.uploadAliasedOids(UploadAliasedOidsRequest.newBuilder()
-                    .putAliasIdToRealId(ALIAS_OID, REAL_OID)
-                    .setBroadcastTimeUtcMs(BROADCAST_TIME_UTC_MS)
-                .build()));
+        client.uploadAliasedOids(sampleRequest());
+        Mockito.verify(cloudCostScopeIdReplacementLog, times(1)).persistScopeIdReplacements();
+    }
+
+    /**
+     * Test that when {@link ScopeIdReplacementLog#persistScopeIdReplacements()} throws an {@link Exception}, the client
+     * receives a valid response.
+     *
+     * @throws Exception if {@link ScopeIdReplacementLog#persistScopeIdReplacements()} throws an exception.
+     */
+    @Test
+    public void testUploadAliasOidsExceptionFromPersistScopeIdReplacement() throws Exception {
+        Mockito.when(cloudCostScopeIdReplacementLog.persistScopeIdReplacements()).thenThrow(new Exception());
+        Assert.assertNotNull(client.uploadAliasedOids(sampleRequest()));
+    }
+
+    private UploadAliasedOidsRequest sampleRequest() {
+        return UploadAliasedOidsRequest.newBuilder()
+            .putAliasIdToRealId(ALIAS_OID, REAL_OID)
+            .setBroadcastTimeUtcMs(BROADCAST_TIME_UTC_MS)
+            .build();
     }
 }

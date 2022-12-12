@@ -51,7 +51,8 @@ import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
         ComputeTierDemandStatsConfig.class,
         DbAccessConfig.class,
         ReservedInstanceSpecConfig.class,
-        CloudCommitmentStatsConfig.class})
+        CloudCommitmentStatsConfig.class,
+        CloudScopeConfig.class})
 @Configuration
 public class CostDiagnosticsConfig {
 
@@ -96,6 +97,9 @@ public class CostDiagnosticsConfig {
 
     @Autowired
     private DbAccessConfig dbAccessConfig;
+
+    @Autowired
+    private CloudScopeConfig cloudScopeConfig;
 
     @Value("${saveAllocationDemandStores: true}")
     private boolean saveAllocationDemandDiags;
@@ -151,7 +155,7 @@ public class CostDiagnosticsConfig {
         return new CloudCostDiagsRpcService(cloudCostConfig.cloudCostStore(),
                 billedCostConfig.tagStore(),
                 billedCostConfig.tagGroupStore(),
-                cloudCostConfig.cloudScopeIdentityStore());
+                cloudScopeConfig.cloudScopeIdentityStore());
     }
 
     /**
@@ -188,7 +192,7 @@ public class CostDiagnosticsConfig {
             storesToSave.addAll(cloudCostConfig.cloudCostStore().getDiagnosables(true));
             storesToSave.addAll(billedCostConfig.tagStore().getDiagnosables(true));
             storesToSave.addAll(billedCostConfig.tagGroupStore().getDiagnosables(true));
-            storesToSave.addAll(cloudCostConfig.cloudScopeIdentityStore().getDiagnosables(true));
+            storesToSave.addAll(cloudScopeConfig.cloudScopeIdentityStore().getDiagnosables(true));
 
             // Query the reserved instance coverage store. If saveHistoricalStatsDiags is true, we also dump rolled up tables.
             storesToSave.addAll(reservedInstanceConfig.reservedInstanceCoverageStore().getDiagnosables(saveHistoricalStatsDiags));

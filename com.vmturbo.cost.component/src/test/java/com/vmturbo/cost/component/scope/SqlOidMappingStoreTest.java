@@ -1,12 +1,19 @@
 package com.vmturbo.cost.component.scope;
 
 import static com.vmturbo.cost.component.db.Cost.COST;
+import static com.vmturbo.cost.component.scope.ScopeIdReplacementTestUtils.ALIAS_OID;
+import static com.vmturbo.cost.component.scope.ScopeIdReplacementTestUtils.BROADCAST_TIME_UTC_MS;
+import static com.vmturbo.cost.component.scope.ScopeIdReplacementTestUtils.BROADCAST_TIME_UTC_MS_NEXT_DAY;
+import static com.vmturbo.cost.component.scope.ScopeIdReplacementTestUtils.REAL_OID;
+import static com.vmturbo.cost.component.scope.ScopeIdReplacementTestUtils.REAL_OID_2;
+import static com.vmturbo.cost.component.scope.ScopeIdReplacementTestUtils.createOidMapping;
 
 import java.sql.SQLException;
 import java.time.Instant;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -18,6 +25,7 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 
+import com.vmturbo.components.common.RequiresDataInitialization.InitializationException;
 import com.vmturbo.cost.component.db.Tables;
 import com.vmturbo.cost.component.db.TestCostDbEndpointConfig;
 import com.vmturbo.cost.component.db.tables.records.OidMappingRecord;
@@ -29,12 +37,6 @@ import com.vmturbo.sql.utils.MultiDbTestBase;
  */
 @RunWith(Parameterized.class)
 public class SqlOidMappingStoreTest extends MultiDbTestBase {
-
-    private static final long ALIAS_OID = 111111L;
-    private static final long REAL_OID = 7777777L;
-    private static final long REAL_OID_2 = 8888888L;
-    private static final long BROADCAST_TIME_UTC_MS = 1668046796000L;
-    private static final long BROADCAST_TIME_UTC_MS_NEXT_DAY = 1668133196000L;
 
     private final DSLContext dslContext;
     private SqlOidMappingStore sqlOidMappingStore;
@@ -132,19 +134,49 @@ public class SqlOidMappingStoreTest extends MultiDbTestBase {
         verifyOidMappingRecord(oidMappingNextBroadcast, resultMap.get(REAL_OID_2));
     }
 
+    /**
+     * Test that {@link SqlOidMappingStore#getNewOidMappings(Collection)} returns empty collection existingOidMappings
+     * argument contains the same instances as the store. This also tests {@link SqlOidMappingStore#initialize()} as
+     * the data in this test is not populated via {@link SqlOidMappingStore#registerOidMappings(Collection)}.
+     *
+     * @throws InitializationException if error encountered during initialization.
+     */
+    @Test
+    public void testGetNewOidMappingsNoNewOidMappings() throws InitializationException {
+        dslContext.insertInto(Tables.OID_MAPPING).columns(Tables.OID_MAPPING.REAL_ID, Tables.OID_MAPPING.ALIAS_ID,
+            Tables.OID_MAPPING.FIRST_DISCOVERED_TIME_MS_UTC).values(REAL_OID, ALIAS_OID,
+            Instant.ofEpochMilli(BROADCAST_TIME_UTC_MS))
+            .execute();
+        sqlOidMappingStore.initialize();
+        Assert.assertTrue(sqlOidMappingStore.getNewOidMappings(Collections.singleton(createOidMapping(ALIAS_OID,
+                REAL_OID, BROADCAST_TIME_UTC_MS).oidMappingKey()))
+            .isEmpty());
+    }
+
+    /**
+     * Test that {@link SqlOidMappingStore#getNewOidMappings(Collection)} returns the collection containing
+     * {@link OidMapping} instances that exclude the ones from the input existingOidMappings collection.
+     *
+     * @throws InitializationException if error encountered during initialization.
+     */
+    @Test
+    public void testGetNewOidMappingsNewOidMappingsExist() throws InitializationException {
+        dslContext.insertInto(Tables.OID_MAPPING).columns(Tables.OID_MAPPING.REAL_ID, Tables.OID_MAPPING.ALIAS_ID,
+                Tables.OID_MAPPING.FIRST_DISCOVERED_TIME_MS_UTC).values(REAL_OID, ALIAS_OID,
+                Instant.ofEpochMilli(BROADCAST_TIME_UTC_MS))
+            .values(REAL_OID_2, ALIAS_OID, Instant.ofEpochMilli(BROADCAST_TIME_UTC_MS_NEXT_DAY))
+            .execute();
+        sqlOidMappingStore.initialize();
+        final Set<OidMapping> expectedOidMappings = Collections.singleton(createOidMapping(ALIAS_OID, REAL_OID_2,
+            BROADCAST_TIME_UTC_MS_NEXT_DAY));
+        Assert.assertEquals(expectedOidMappings, sqlOidMappingStore.getNewOidMappings(
+            Collections.singleton(createOidMapping(ALIAS_OID,
+                REAL_OID, BROADCAST_TIME_UTC_MS).oidMappingKey())));
+    }
+
     private void verifyOidMappingRecord(final OidMapping expectedMapping, final OidMappingRecord actualRecord) {
         Assert.assertEquals(expectedMapping.oidMappingKey().realOid(), (long)actualRecord.getRealId());
         Assert.assertEquals(expectedMapping.oidMappingKey().aliasOid(), (long)actualRecord.getAliasId());
         Assert.assertEquals(expectedMapping.firstDiscoveredTimeMsUtc(), actualRecord.getFirstDiscoveredTimeMsUtc());
-    }
-
-    private OidMapping createOidMapping(final long aliasOid, final long realOid, final long firstDiscoveredTime) {
-        return ImmutableOidMapping.builder()
-            .oidMappingKey(ImmutableOidMappingKey.builder()
-                .aliasOid(aliasOid)
-                .realOid(realOid)
-                .build())
-            .firstDiscoveredTimeMsUtc(Instant.ofEpochMilli(firstDiscoveredTime))
-            .build();
     }
 }

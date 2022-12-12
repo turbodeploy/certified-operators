@@ -7,12 +7,14 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
+import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyLong;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import java.sql.SQLException;
 import java.time.Duration;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
@@ -63,6 +65,7 @@ import com.vmturbo.cost.component.billedcosts.TagIdentityService;
 import com.vmturbo.cost.component.billedcosts.TagStore;
 import com.vmturbo.cost.component.db.Cost;
 import com.vmturbo.cost.component.db.TestCostDbEndpointConfig;
+import com.vmturbo.cost.component.scope.SqlCloudCostScopeIdReplacementLog;
 import com.vmturbo.cost.component.scope.SqlCloudScopeIdentityStore;
 import com.vmturbo.platform.sdk.common.CommonCost.CurrencyAmount;
 import com.vmturbo.platform.sdk.common.CommonCost.PriceModel;
@@ -175,8 +178,14 @@ public class BilledCostRpcServiceTest extends MultiDbTestBase {
 
         final IPartitioningManager partitioningManager = mock(IPartitioningManager.class);
 
+        final SqlCloudCostScopeIdReplacementLog sqlCloudCostScopeIdReplacementLog
+            = mock(SqlCloudCostScopeIdReplacementLog.class);
+
+        when(sqlCloudCostScopeIdReplacementLog.getReplacedScopeId(anyLong(), any(Instant.class)))
+            .thenAnswer(i -> i.getArguments()[0]);
+
         sqlCloudCostStore = new SqlCloudCostStore(partitioningManager, tagGroupIdentityService,
-                cloudScopeIdentityProvider, dataQueueFactory, timeFrameCalculator,
+                cloudScopeIdentityProvider, sqlCloudCostScopeIdReplacementLog, dataQueueFactory, timeFrameCalculator,
                 super.getDslContext(), billedCostPersistenceConfig);
 
         billedCostRpcService = new BilledCostRpcService(sqlCloudCostStore);
