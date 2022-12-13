@@ -184,6 +184,7 @@ public class EntityStoreTest {
     @Before
     public void setup() {
         MockitoAnnotations.initMocks(this);
+        EntityStore.DISCOVERED_ENTITIES_GAUGE.resetForTesting();
         TARGET_COUNT_GAUGE.resetForTesting();
         when(target.getId()).thenReturn(targetId);
         when(target.getDisplayName()).thenReturn(targetDisplayName);

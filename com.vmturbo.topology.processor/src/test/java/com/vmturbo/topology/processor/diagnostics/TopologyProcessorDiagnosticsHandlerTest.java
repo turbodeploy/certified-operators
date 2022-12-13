@@ -152,6 +152,7 @@ import com.vmturbo.topology.processor.group.discovery.InterpretedGroup;
 import com.vmturbo.topology.processor.identity.IdentityProvider;
 import com.vmturbo.topology.processor.identity.IdentityProviderImpl;
 import com.vmturbo.topology.processor.identity.StaleOidManager;
+import com.vmturbo.topology.processor.identity.StaleOidManagerImpl;
 import com.vmturbo.topology.processor.probes.ProbeStore;
 import com.vmturbo.topology.processor.rpc.TargetHealthRetriever;
 import com.vmturbo.topology.processor.scheduling.Scheduler;
@@ -236,6 +237,47 @@ public class TopologyProcessorDiagnosticsHandlerTest {
 
     private static final String TARGET_DISPLAY_NAME = "target name";
     private Map<String, BinaryDiagsRestorable> statefulEditors = Collections.emptyMap();
+
+    /**
+     * Public method to return a TopologyProcessorDiagnosticsHandler constructor outside the package
+     * (used in TopologyPipelineFactoryFromDiagsTest).
+     * @param targetStore to use in the constructor
+     * @param targetPersistentIdentityStore to use in the constructor
+     * @param scheduler to use in the constructor
+     * @param entityStore to use in the constructor
+     * @param probeStore to use in the constructor
+     * @param discoveredGroupUploader to use in the constructor
+     * @param templateDeploymentProfileUploader to use in the constructor
+     * @param identityProvider to use in the constructor
+     * @param discoveredCloudCostUploader to use in the constructor
+     * @param priceTableUploader to use in the constructor
+     * @param topologyPipelineExecutorService to use in the constructor
+     * @param fixedFilenameBinaryDiagnosticParts to use in the constructor
+     * @param binaryDiscoveryDumper to use in the constructor
+     * @param targetStatusTracker to use in the constructor
+     * @param stalenessInformationProvider to use in the constructor
+     * @param staleOidManager to use in the constructor
+     * @param targetHealthRetriever to use in the constructor
+     * @return a new instance of TopologyProcessorDiagnosticsHandler
+     */
+    public static TopologyProcessorDiagnosticsHandler createInstance(TargetStore targetStore,
+            PersistentIdentityStore targetPersistentIdentityStore, Scheduler scheduler,
+            EntityStore entityStore, ProbeStore probeStore, DiscoveredGroupUploader discoveredGroupUploader,
+            DiscoveredTemplateDeploymentProfileUploader templateDeploymentProfileUploader,
+            IdentityProvider identityProvider, DiscoveredCloudCostUploader discoveredCloudCostUploader,
+            PriceTableUploader priceTableUploader, TopologyPipelineExecutorService topologyPipelineExecutorService,
+            Map<String, BinaryDiagsRestorable> fixedFilenameBinaryDiagnosticParts,
+            BinaryDiscoveryDumper binaryDiscoveryDumper, TargetStatusTracker targetStatusTracker,
+            StalenessInformationProvider stalenessInformationProvider, Object staleOidManager,
+            TargetHealthRetriever targetHealthRetriever) {
+        return new TopologyProcessorDiagnosticsHandler(targetStore, targetPersistentIdentityStore,
+                scheduler, entityStore, probeStore, discoveredGroupUploader,
+                templateDeploymentProfileUploader, identityProvider, discoveredCloudCostUploader,
+                priceTableUploader, topologyPipelineExecutorService,
+                fixedFilenameBinaryDiagnosticParts, binaryDiscoveryDumper, targetStatusTracker,
+                stalenessInformationProvider, (StaleOidManager)staleOidManager,
+                targetHealthRetriever);
+    }
 
     @Before
     public void setup() throws Exception {
