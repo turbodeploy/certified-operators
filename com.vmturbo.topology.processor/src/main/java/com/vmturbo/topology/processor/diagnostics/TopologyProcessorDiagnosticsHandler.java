@@ -406,10 +406,12 @@ public class TopologyProcessorDiagnosticsHandler implements IDiagnosticsHandlerI
      */
     private static Integer diagsRestorePriority(Diags diags) {
         // TODO remote this method. We should export diags in an order suitable for restoring
-        final String diagsName = diags.getName();
-
+        //final String diagsName = diags.getName();
+        String diagsPath = diags.getName();
+        final String diagsName = diagsPath.split("/")[diagsPath.split("/").length-1];
         switch (diagsName) {
-            case IdentityProviderImpl.ID_DIAGS_FILE_NAME:
+            case IdentityProviderImpl.ID_DIAGS_FILE_NAME+""+DiagsZipReader.BINARY_DIAGS_SUFFIX:
+            case IdentityProviderImpl.ID_DIAGS_FILE_NAME+""+DiagsZipReader.TEXT_DIAGS_SUFFIX:
                 return 1;
             case PROBES_DIAGS_FILE_NAME:
                 return 2;
