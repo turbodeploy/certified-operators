@@ -3,6 +3,9 @@ T8C-Operator Changelog
 
 Operator Versions
 ---------------------
+42.21
+1. Use data streams for kinesis kafka connect and deploy access key secret from script
+
 42.20
 1. Fixed a bug where log messages would get lost in a Turbo Secure Connect environment
 2. Disable the default containerized DB creation step for new installation by adding an `externalDbIp` field under the `spec/global` section of the CR yaml file.

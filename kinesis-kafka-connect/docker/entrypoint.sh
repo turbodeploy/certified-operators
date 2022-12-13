@@ -36,46 +36,77 @@ else
   export LOGGER_COMMAND="eval tee >(logger --tag ${instance_id} -u /tmp/log.sock)"
 fi
 
+# Stream name is required
+if [[ -z ${KINESIS_STREAM} ]]; then
+  echo "Kinesis stream name is not set! Exiting..."
+  exit 0
+fi
+KINESIS_STREAM=${KINESIS_STREAM}
+
 # Get external config variables or use defaults
 BOOTSTRAP_SERVERS=${BOOTSTRAP_SERVERS:-kafka:9092}
 CONNECTOR_NAME=${CONNECTOR_NAME:-saas-reporting-connector}
 EXPORTER_TOPIC=${EXPORTER_TOPIC:-turbonomic.exporter}
 KINESIS_REGION=${KINESIS_REGION:-us-east-1}
-BATCH_SIZE=${BATCH_SIZE:-500}
-BATCH_SIZE_BYTES=${BATCH_SIZE_BYTES:-3670016} # 3.5 MiB
-KINESIS_DELIVERY_STREAM=${KINESIS_DELIVERY_STREAM:-saas-reporting-stream}
+METRICS_LEVEL=${METRICS_LEVEL:-none}
+METRICS_GRANULARITY=${METRICS_GRANULARITY:-global}
+METRICS_NAME_SPACE=${METRICS_NAME_SPACE:-KinesisProducer}
 
 # Replace values for worker.properties
 sed -i "s/\${BOOTSTRAP_SERVERS}/${BOOTSTRAP_SERVERS}/" worker.properties
 
-# Replace values for kinesis-firehose-kafka-connect.properties
+# Replace values for kinesis-streams-kafka-connect.properties
 sed -i -e "s/\${CONNECTOR_NAME}/${CONNECTOR_NAME}/" \
        -e "s/\${EXPORTER_TOPIC}/${EXPORTER_TOPIC}/" \
        -e "s/\${KINESIS_REGION}/${KINESIS_REGION}/" \
-       -e "s/\${BATCH_SIZE}/${BATCH_SIZE}/" \
-       -e "s/\${BATCH_SIZE_BYTES}/${BATCH_SIZE_BYTES}/" \
-       -e "s/\${KINESIS_DELIVERY_STREAM}/${KINESIS_DELIVERY_STREAM}/" \
-       kinesis-firehose-kafka-connect.properties
+       -e "s/\${KINESIS_STREAM}/${KINESIS_STREAM}/" \
+       -e "s/\${METRICS_LEVEL}/${METRICS_LEVEL}/" \
+       -e "s/\${METRICS_GRANULARITY}/${METRICS_GRANULARITY}/" \
+       -e "s/\${METRICS_NAME_SPACE}/${METRICS_NAME_SPACE}/" \
+       kinesis-streams-kafka-connect.properties
+
+# Optional configs
+if [[ -n ${ROLE_ARN} ]]; then
+  ROLE_ARN=${ROLE_ARN}
+  echo roleARN=${ROLE_ARN} >> kinesis-streams-kafka-connect.properties
+fi
+if [[ -n ${ROLE_SESSION_NAME} ]]; then
+  ROLE_SESSION_NAME=${ROLE_SESSION_NAME}
+  echo roleSessionName=${ROLE_SESSION_NAME} >> kinesis-streams-kafka-connect.properties
+fi
+if [[ -n ${ROLE_EXTERNAL_ID} ]]; then
+  ROLE_EXTERNAL_ID=${ROLE_EXTERNAL_ID}
+  echo roleExternalID=${ROLE_EXTERNAL_ID} >> kinesis-streams-kafka-connect.properties
+fi
+if [[ -n ${ROLE_DURATION_SECONDS} ]]; then
+  ROLE_DURATION_SECONDS=${ROLE_DURATION_SECONDS}
+  echo roleDurationSeconds=${ROLE_DURATION_SECONDS} >> kinesis-streams-kafka-connect.properties
+fi
 
 # Log configuration
 log_configuration() {
   echo "Starting connector with config:"
-  echo "BOOTSTRAP_SERVERS:" $BOOTSTRAP_SERVERS
-  echo "CONNECTOR_NAME:" $CONNECTOR_NAME
-  echo "EXPORTER_TOPIC:" $EXPORTER_TOPIC
-  echo "KINESIS_REGION:" $KINESIS_REGION
-  echo "BATCH_SIZE:" $BATCH_SIZE
-  echo "BATCH_SIZE_BYTES:" $BATCH_SIZE_BYTES
-  echo "KINESIS_DELIVERY_STREAM:" $KINESIS_DELIVERY_STREAM
+  echo "BOOTSTRAP_SERVERS:" "$BOOTSTRAP_SERVERS"
+  echo "CONNECTOR_NAME:" "$CONNECTOR_NAME"
+  echo "EXPORTER_TOPIC:" "$EXPORTER_TOPIC"
+  echo "KINESIS_REGION:" "$KINESIS_REGION"
+  echo "KINESIS_STREAM:" "$KINESIS_STREAM"
+  echo "METRICS_LEVEL:" "$METRICS_LEVEL"
+  echo "METRICS_GRANULARITY:" "$METRICS_GRANULARITY"
+  echo "METRICS_NAME_SPACE:" "$METRICS_NAME_SPACE"
+  echo "ROLE_ARN:" "$ROLE_ARN"
+  echo "ROLE_SESSION_NAME:" "$ROLE_SESSION_NAME"
+  echo "ROLE_EXTERNAL_ID:" "$ROLE_EXTERNAL_ID"
+  echo "ROLE_DURATION_SECONDS:" "$ROLE_DURATION_SECONDS"
   echo
   echo "worker.properties:"
   cat worker.properties
   echo
-  echo "kinesis-firehose-kafka-connect.properties"
-  cat kinesis-firehose-kafka-connect.properties
+  echo "kinesis-streams-kafka-connect.properties"
+  cat kinesis-streams-kafka-connect.properties
 }
 
 log_configuration > >(${LOGGER_COMMAND}) 2>&1
 
 # Start the connector
-/usr/bin/connect-standalone worker.properties kinesis-firehose-kafka-connect.properties > >(${LOGGER_COMMAND}) 2>&1
+/usr/bin/connect-standalone worker.properties kinesis-streams-kafka-connect.properties > >(${LOGGER_COMMAND}) 2>&1
