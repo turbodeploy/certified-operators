@@ -236,7 +236,7 @@
 
         <!-- Versions for the kinesis kafka connector -->
         <kinesis.kafkaConnect.version>7.2.2-1-ubi8</kinesis.kafkaConnect.version>
-        <kinesis.connectorPlugin.version>0.0.8</kinesis.connectorPlugin.version>
+        <kinesis.connectorPlugin.version>bf6a9b63059095fc328996b1445e5993177f7564</kinesis.connectorPlugin.version>
     </properties>
 
     <profiles>

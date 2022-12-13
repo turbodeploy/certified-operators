@@ -21,7 +21,7 @@ USER kinesis
 
 # Download the source code for the connector plugin. The connector_version variable is set at the global scope
 ARG connector_version
-RUN curl -L "https://github.com/awslabs/kinesis-kafka-connector/archive/refs/heads/${connector_version}.zip" \
+RUN curl -L "https://github.com/awslabs/kinesis-kafka-connector/archive/${connector_version}.zip" \
          -o connector.zip
 
 # Unzip the code. We expect to get a directory called kinesis-kafka-connector-0.0.8 (if we use version 0.0.8)
@@ -58,6 +58,9 @@ RUN curl https://dl.fedoraproject.org/pub/epel/epel-release-latest-8.noarch.rpm 
 # Copy over the rssyslog configuration
 ADD rsyslog.conf /etc
 
+# appuser needs permission to write certificate and setup configs to tmp.
+RUN chown appuser:appuser /tmp
+
 # Switch to the user provided by the base image
 USER appuser
 
@@ -76,7 +79,7 @@ COPY --from=build --chown=appuser:appuser /connector/kinesis-kafka-connector-*/t
 # Get the properties template files. Some properties use a ${} assignment. This will be replaces
 # with external configuration by the entrypoint script. The values to be replaced are expected to
 # show up as environment variables.
-COPY --chown=appuser:appuser worker.properties kinesis-firehose-kafka-connect.properties ./
+COPY --chown=appuser:appuser worker.properties kinesis-streams-kafka-connect.properties ./
 
 ENTRYPOINT ["./entrypoint.sh"]
 
