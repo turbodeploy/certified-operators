@@ -636,7 +636,9 @@ public class SuspensionMapper {
         CreateTimespanScheduleRequest.Builder requestBuilder = CreateTimespanScheduleRequest.getDefaultInstance().newBuilder();
         requestBuilder.setName(scheduleApiDTO.getDisplayName());
         requestBuilder.setTimezone(scheduleApiDTO.getTimeZone());
-        requestBuilder.setDescription(scheduleApiDTO.getDescription());
+        if (scheduleApiDTO.hasDescription()) {
+            requestBuilder.setDescription(scheduleApiDTO.getDescription());
+        }
         String timespanType = scheduleApiDTO.getTimeSpans().getType();
         WeekDayTimeSpansApiDTO weekDayTimeSpansApiDTO = new WeekDayTimeSpansApiDTO();
         if (timespanType.equals(weekDayTimeSpansApiDTO.getType())) {
@@ -693,7 +695,9 @@ public class SuspensionMapper {
         requestBuilder.setOid(Long.parseLong(uuid));
         requestBuilder.setName(scheduleApiDTO.getDisplayName());
         requestBuilder.setTimezone(scheduleApiDTO.getTimeZone());
-        requestBuilder.setDescription(scheduleApiDTO.getDescription());
+        if (scheduleApiDTO.hasDescription()) {
+            requestBuilder.setDescription(scheduleApiDTO.getDescription());
+        }
         String timespanType = scheduleApiDTO.getTimeSpans().getType();
         WeekDayTimeSpansApiDTO weekDayTimeSpansApiDTO = new WeekDayTimeSpansApiDTO();
         if (timespanType.equals(weekDayTimeSpansApiDTO.getType())) {
