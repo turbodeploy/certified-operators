@@ -67,7 +67,7 @@ public class BilledCloudCostUploaderTest {
 
     private static final CloudBillingDataPoint VIRTUAL_MACHINE_USAGE_1 =
             CloudBillingDataPoint.newBuilder()
-                    .setEntityId("s89dafsdf-c20a-4868-r23-8s9f7aew9sf/CLOUD-PAAS-RG/paasstressvm2")
+                    .setEntityId("azure::VM::s89dafsdf-c20a-4868-r23-8s9f7aew9sf/CLOUD-PAAS-RG/paasstressvm2")
                     .setCloudServiceId("azure::CS::VirtualMachines")
                     .setAccountId("s89dafsdf-c20a-4868-r23-8s9f7aew9sf")
                     .setRegionId("azure::canadacentral::DC::canadacentral")
