@@ -761,16 +761,21 @@ public class TopologyDataDefinitionStore implements DiagsRestorable<DSLContext> 
             context.deleteFrom(MANUAL_TOPO_DATA_DEFS)
                     .where(MANUAL_TOPO_DATA_DEFS.ID.eq(id))
                     .execute();
-            try {
-                this.identityStore.removeItemOids(Collections.singleton(id));
-            } catch (IdentityStoreException e) {
-                throw new StoreOperationException(Status.INVALID_ARGUMENT,
-                        e.getMessage(), e);
-            }
         } else {
             context.deleteFrom(AUTO_TOPO_DATA_DEFS)
                     .where(AUTO_TOPO_DATA_DEFS.ID.eq(id))
                     .execute();
+        }
+
+        /*
+        * Delete the entry from topology_data_definitions_oid table
+        * and identity_store's in-memory value
+        * */
+        try {
+            this.identityStore.removeItemOids(Collections.singleton(id));
+        } catch (IdentityStoreException e) {
+            throw new StoreOperationException(Status.INVALID_ARGUMENT,
+                    e.getMessage(), e);
         }
 
         return true;
