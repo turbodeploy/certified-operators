@@ -223,11 +223,11 @@ public class RollupProcessorRetryTest {
      * Check that monthlies are skipped if dailies time out.
      */
     @Test
-    public void testThatMonthliesDontRunIfDailiesTimeOut() {
+    public void testThatMonthliesRunIfDailiesTimeOut() {
         this.exceptions.add(new TimeoutException());
         assertThat(rollupProcessor.performDayMonthRollups(tableCounts, Instant.now(), false),
                 is(TIMED_OUT));
         assertTrue(dailyAttempted);
-        assertFalse(monthlyAttempted);
+        assertTrue(monthlyAttempted);
     }
 }

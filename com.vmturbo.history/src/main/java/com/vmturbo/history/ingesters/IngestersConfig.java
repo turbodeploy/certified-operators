@@ -204,9 +204,10 @@ public class IngestersConfig {
      * all batches in the rollup, which should make it more likely that a single default value will
      * be sensible across a wide range of topology sizes. It is not a "per-batch" value in the
      * sense of being applied to each batch individually; only the scaled value is used to time
-     * the overall rollup operation.
+     * the overall rollup operation. The value should exceed the average time to perform a single
+     * UPSERT operation in the rollup, but not by a lot.
      */
-    @Value("${rollup.TimeoutMsecForBatchSize:5000}")
+    @Value("${rollup.TimeoutMsecForBatchSize:10000}")
     private long rollupTimeoutMsecForBatchSize;
 
 

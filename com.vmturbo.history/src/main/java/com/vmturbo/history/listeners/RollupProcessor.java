@@ -228,14 +228,19 @@ public class RollupProcessor {
                 timer);
         addAvailableTimestamps(snapshot, RollupType.BY_DAY, HistoryVariety.ENTITY_STATS,
                 HistoryVariety.PRICE_DATA);
-        if (dailyOutcome == RollupOutcome.INTERRUPTED || dailyOutcome == RollupOutcome.TIMED_OUT) {
-            // don't keep working if we were interrupted or already timed out
-            logger.warn("Skipping monhtly rollup becuase daily rollup was {}}",
-                    dailyOutcome.name().toLowerCase());
+        if (dailyOutcome == RollupOutcome.INTERRUPTED) {
+            // don't keep working if we were interrupted
+            logger.warn(
+                    "Skipping monhtly rollup and retention processing because daily rollup was interrupted");
             return dailyOutcome;
         }
         final RollupOutcome monthlyOutcome = performRollups(tableCounts, snapshot,
                 RollupType.BY_MONTH, timer);
+        if (monthlyOutcome == RollupOutcome.INTERRUPTED) {
+            logger.warn(
+                    "Skipping retention processing because monthly rollup was interrupted");
+            return monthlyOutcome;
+        }
         addAvailableTimestamps(snapshot, RollupType.BY_MONTH, HistoryVariety.ENTITY_STATS,
                 HistoryVariety.PRICE_DATA);
         if (doRetention) {
@@ -410,6 +415,7 @@ public class RollupProcessor {
             // we ask the partitioning manager to perform retention processing on all the
             // partitions.
             if (FeatureFlags.OPTIMIZE_PARTITIONING.isEnabled()) {
+                timer.start("Purge expired partitions");
                 partitioningManager.performRetentionUpdate();
             }
             return;
