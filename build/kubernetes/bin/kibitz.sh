@@ -207,6 +207,8 @@ spec:
           value: "true"
         - name: JAVA_DEBUG_OPTS
           value: "-agentlib:jdwp=transport=dt_socket,address=0.0.0.0:8000,server=y,suspend=n"
+        - name: JAVA_COMPONENT_OPTS
+          value: "-Dorg.jooq.no-logo=true"
         - name: component_type
           value: kibitzer
         - name: instance_id
