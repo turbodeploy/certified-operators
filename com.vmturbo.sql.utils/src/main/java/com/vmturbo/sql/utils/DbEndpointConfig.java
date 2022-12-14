@@ -1,5 +1,6 @@
 package com.vmturbo.sql.utils;
 
+import java.lang.reflect.Field;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
@@ -7,6 +8,8 @@ import java.util.function.UnaryOperator;
 
 import javax.annotation.Nullable;
 
+import org.apache.commons.lang3.builder.ReflectionToStringBuilder;
+import org.apache.commons.lang3.builder.ToStringStyle;
 import org.flywaydb.core.api.callback.FlywayCallback;
 import org.jooq.SQLDialect;
 
@@ -367,5 +370,32 @@ public class DbEndpointConfig {
         return String.format("DbEndpoint[%s; url=%s; user=%s]",
                 getName() != null ? getName() : "(unnamed)", url,
                 getUserName() != null ? getUserName() : "?");
+    }
+
+    /**
+     * A version of `toString()` that shows values for all non-null and non-password properties.
+     *
+     * <p>This is used by {@link DbEndpointBuilder}'s toString method, where it's likely to be used
+     * primarily on a temporary basis to debug builder construction.</p>
+     *
+     * @return Detailed rendering of endpoint properties
+     */
+    public String detailedToString() {
+        DbEndpointConfig config = this;
+        ReflectionToStringBuilder builder = new ReflectionToStringBuilder(
+                this, ToStringStyle.SHORT_PREFIX_STYLE) {
+            @Override
+            protected boolean accept(Field field) {
+                try {
+                    if (field.get(config) == null
+                            || field.getName().toLowerCase().endsWith("password")) {
+                        return false;
+                    }
+                } catch (IllegalAccessException ignored) {
+                }
+                return super.accept(field);
+            }
+        };
+        return builder.build();
     }
 }
