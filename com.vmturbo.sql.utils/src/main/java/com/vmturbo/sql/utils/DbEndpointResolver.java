@@ -693,20 +693,36 @@ public class DbEndpointResolver {
     /**
      * Get the default migration locations string for this endpoint.
      *
+     * @return default migration locations string
+     */
+    public String getDefaultMigrationLocations() {
+        return getDefaultMigrationLocations(getComponentName(), dialect);
+    }
+
+    /**
+     * Get the default migration locations string for an endpoint associated with the given
+     * component name and dialect. This is broken out as an accessible static method so it can be
+     * used by Kibitzers `KibitzerDb` class.
+     *
      * <p>If the POSTGRES_PRIMARY_DB feature flag is enabled, this will take the form
      * "db.migrations.&lt;component-name&gt;.&lt;dialect&gt;". Otherwise, the prior default,
      * "db.migration.&lt;component-name&gt;", is used.</p>
      *
-     * @return default migration locations string
+     * <p>N.B. The returned value is *NOT* the correct value for most components when using legacy
+     * DB support ({@link FeatureFlags#POSTGRES_PRIMARY_DB} is disabled). It is correct for the
+     * `extractor` component, which is the only component (so far) that always used `DbEndpoiunt`
+     * from its inception.</p>
+     *
+     * @param componentName name of component  whose migrations are needed
+     * @param dialect       {@link SQLDialect} being used by the endpoint
+     * @return default migration locations
      */
-    public String getDefaultMigrationLocations() {
-        String componentName = sanitizeComponentName(getComponentName());
-        if (FeatureFlags.POSTGRES_PRIMARY_DB.isEnabled()) {
-            String dialect = config.getDialect().name().toLowerCase();
-            return String.join(".", "db", "migrations", componentName, dialect);
-        } else {
-            return DEFAULT_MIGRATION_LOCATION_PREFIX + componentName;
-        }
+    public static String getDefaultMigrationLocations(String componentName, SQLDialect dialect) {
+        String componentPart = sanitizeComponentName(componentName);
+        String dialectPart = dialect.name().toLowerCase();
+        return FeatureFlags.POSTGRES_PRIMARY_DB.isEnabled()
+                ? String.join(".", "db", "migrations", componentPart, dialectPart)
+                : DEFAULT_MIGRATION_LOCATION_PREFIX + componentPart;
     }
 
     /**
