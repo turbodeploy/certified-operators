@@ -1,6 +1,7 @@
 package com.vmturbo.sql.utils;
 
 import java.sql.Connection;
+import java.sql.ResultSet;
 import java.sql.SQLException;
 
 import javax.sql.DataSource;
@@ -32,20 +33,34 @@ class MySqlFamilyAdapter extends DbAdapter {
 
     @Override
     protected void createSchema() throws SQLException, UnsupportedDialectException {
+        if (!schemaExists(config.getDatabaseName())) {
+            try (Connection conn = getRootConnection()) {
+                execute(conn, String.format("CREATE DATABASE IF NOT EXISTS %s",
+                        config.getDatabaseName()));
+                setCreatedSchema(true);
+            }
+        }
+    }
+
+    private boolean schemaExists(String name) throws SQLException, UnsupportedDialectException {
         try (Connection conn = getRootConnection()) {
-            execute(conn, String.format("CREATE DATABASE IF NOT EXISTS %s",
-                    config.getDatabaseName()));
+            ResultSet rs = conn.createStatement().executeQuery(String.format(
+                    "SELECT 1 FROM information_schema.schemata WHERE schema_name = '%s'", name));
+            // this checks if the result has any rows at all; if so, schema already exists
+            return rs.next();
         }
     }
 
     @Override
     protected void createNonRootUser() throws UnsupportedDialectException, SQLException {
-        createUserIfNotExists(config.getUserName(), config.getPassword());
+        setCreatedUser(createUserIfNotExists(config.getUserName(), config.getPassword()));
     }
 
     @Override
     protected String obscurePasswords(final String sql) {
-        return sql.replaceAll("(\\bSET\\s+PASSWORD\\s+(?:FOR\\s+`[^`]*`@`[^`]+`)\\s+)?=\\s+password\\(\\s*'([^']*)'", "$1***'");
+        return sql.replaceAll(
+                "(\\bSET\\s+PASSWORD\\s+(?:FOR\\s+`[^`]*`@`[^`]+`)\\s+)?=\\s+password\\(\\s*'([^']*)'",
+                "$1***'");
     }
 
     @Override
@@ -74,28 +89,37 @@ class MySqlFamilyAdapter extends DbAdapter {
      * @throws SQLException                if the operation fails for any reason other than that the
      *                                     role already exists
      */
-    private void createUserIfNotExists(String name, String password)
+    private boolean createUserIfNotExists(String name, String password)
             throws UnsupportedDialectException, SQLException {
-        try (Connection conn = getRootConnection()) {
-            try {
+        boolean userAlreadyPresent = userExists(name);
+        if (!userAlreadyPresent) {
+            try (Connection conn = getRootConnection()) {
                 // we need to include password on CREATE USER operation in order work when
                 // MySQL password policies are active
                 execute(conn, String.format("CREATE USER `%s`@`%%` IDENTIFIED BY '%s'",
                         name, password));
+            }
+        }
+        if (password != null) {
+            try (Connection conn = getRootConnection()) {
+                execute(conn, String.format("SET PASSWORD FOR `%s`@`%%` = password('%s')",
+                        name, config.getPassword()));
             } catch (SQLException e) {
-                logger.info("Presuming role {} already exists {}", name, e.getSQLState());
+                // replace the thrown exception with one that loses the upstream stack trace,
+                // since otherwise we risk exposing password in logs
+                throw copySQLExceptionWithoutStack(
+                        String.format("Failed to set password for user `%s`@'%%'", name), e);
             }
-            if (password != null) {
-                try {
-                    execute(conn, String.format("SET PASSWORD FOR `%s`@`%%` = password('%s')",
-                            name, config.getPassword()));
-                } catch (SQLException e) {
-                    // replace the thrown exception with one that loses the upstream stack trace,
-                    // since otherwise we risk exposing password in logs
-                    throw copySQLExceptionWithoutStack(
-                            String.format("Failed to set password for user `%s`@'%%'", name), e);
-                }
-            }
+        }
+        return !userAlreadyPresent;
+    }
+
+    private boolean userExists(String name) throws SQLException, UnsupportedDialectException {
+        try (Connection conn = getRootConnection()) {
+            ResultSet rs = conn.createStatement().executeQuery(
+                    String.format("SELECT 1 FROM mysql.user WHERE user = '%s'", name));
+            // following tests if the result set has any rows; if so, user already exists
+            return rs.next();
         }
     }
 
@@ -124,15 +148,19 @@ class MySqlFamilyAdapter extends DbAdapter {
 
     @Override
     public void tearDown() {
-        try (Connection conn = getPrivilegedConnection()) {
-            execute(conn, String.format("DROP USER `%s`@`%%`", config.getUserName()));
-        } catch (UnsupportedDialectException | SQLException e) {
-            logger.error("Failed to drop user {}", config.getUserName(), e);
+        if (createdUser.getValue().orElse(false)) {
+            try (Connection conn = getPrivilegedConnection()) {
+                execute(conn, String.format("DROP USER `%s`@`%%`", config.getUserName()));
+            } catch (UnsupportedDialectException | SQLException e) {
+                logger.error("Failed to drop user {}", config.getUserName(), e);
+            }
         }
-        try (Connection conn = getPrivilegedConnection()) {
-            execute(conn, String.format("DROP DATABASE `%s`", config.getDatabaseName()));
-        } catch (UnsupportedDialectException | SQLException e) {
-            logger.error("Failed to drop database {}", config.getDatabaseName(), e);
+        if (createdSchema.getValue().orElse(false)) {
+            try (Connection conn = getPrivilegedConnection()) {
+                execute(conn, String.format("DROP DATABASE `%s`", config.getDatabaseName()));
+            } catch (UnsupportedDialectException | SQLException e) {
+                logger.error("Failed to drop database {}", config.getDatabaseName(), e);
+            }
         }
     }
 
