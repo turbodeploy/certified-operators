@@ -118,6 +118,16 @@ public enum MockPricingProbeStage implements ProbeStageEnum {
     ABSTRACT_DB_METER_PROCESSOR("AbstractDbTierMeterProcessor test"),
 
     /**
+     * Process DTU DBTier which are individually priced.
+     */
+    INDIVIDUALLY_PRICED_DB_TIER_PROCESSOR("DTU Tier with fixed base price"),
+
+    /**
+     * Process databases that are priced with a single per-DTU price in each region.
+     */
+    PER_DTU_DATABASE_TIER_PROCESSOR("Price-per-DTU Database Tier Processing"),
+
+    /**
      * Assign pricing identifiers to plans and return a DiscoveredPricing result.
      */
     ASSIGN_IDENTIFIERS("Assign pricing identifiers");
@@ -161,5 +171,7 @@ public enum MockPricingProbeStage implements ProbeStageEnum {
         ULTRA_DISK_STORAGE_TIER,
         DB_STORAGE_METER_PROCESSOR,
         ABSTRACT_DB_METER_PROCESSOR,
+        INDIVIDUALLY_PRICED_DB_TIER_PROCESSOR,
+        PER_DTU_DATABASE_TIER_PROCESSOR,
         ASSIGN_IDENTIFIERS);
 }
