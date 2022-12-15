@@ -48,6 +48,7 @@ message TypeSpecificInfo {
         ServiceInfo service = 85;
         ApplicationServiceInfo application_service = 86;
         CloudApplicationInfo cloud_application = 87;
+        ContainerSpecInfo container_spec = 88;
     }
 
     message ApplicationInfo {
@@ -660,6 +661,11 @@ message TypeSpecificInfo {
         // more consistent for the application when stitched with APM probes or when the
         // application is reported without the cloud native entities.
         optional double hostingNodeCpuFrequency = 3;
+    }
+
+    message ContainerSpecInfo {
+        // The types of CPU throttling metrics
+        optional .common_dto.EntityDTO.CPUThrottlingType cpuThrottlingType = 1;
     }
 
     message ServiceInfo {
