@@ -40,6 +40,7 @@ import com.google.common.collect.Maps;
 import com.google.common.collect.Table;
 
 import org.junit.Assert;
+import org.junit.Rule;
 import org.junit.Test;
 import org.mockito.Mockito;
 
@@ -91,6 +92,8 @@ import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.stitching.StitchingEntity;
 import com.vmturbo.stitching.journal.IStitchingJournal;
 import com.vmturbo.stitching.journal.IStitchingJournal.StitchingMetrics;
+import com.vmturbo.test.utils.FeatureFlagTestRule;
+import com.vmturbo.test.utils.FeatureFlagTestRule.FeatureFlagTest;
 import com.vmturbo.topology.graph.TopologyGraph;
 import com.vmturbo.topology.graph.TopologyGraphCreator;
 import com.vmturbo.topology.graph.search.SearchResolver;
@@ -189,6 +192,13 @@ public class StagesTest {
     private GrpcTestServer testServer;
 
     private GrpcTestServer reservationServer;
+
+
+    /**
+     * Rule to initialize FeatureFlags store.
+     **/
+    @Rule
+    public FeatureFlagTestRule featureFlagTestRule = new FeatureFlagTestRule();
 
 
     @Test
@@ -385,10 +395,12 @@ public class StagesTest {
     }
 
     @Test
+    @FeatureFlagTest(testCombos = {"USE_EXTENDABLE_PIPELINE_INPUT"})
     public void testStitchingStage() throws Exception {
         final StitchingManager stitchingManager = mock(StitchingManager.class);
         final EntityStore entityStore = mock(EntityStore.class);
         final StitchingContext stitchingContext = mock(StitchingContext.class);
+        final PipelineInput pipelineInput = mock(PipelineInput.class);
         final StitchingJournalFactory journalFactory = mock(StitchingJournalFactory.class);
         final StitchingJournalContainer container = new StitchingJournalContainer();
         final IStitchingJournal<StitchingEntity> journal = spy(new EmptyStitchingJournal<>());
@@ -403,12 +415,15 @@ public class StagesTest {
         when(journal.shouldDumpTopologyBeforePreStitching()).thenReturn(true);
         when(stitchingContext.getStitchingGraph()).thenReturn(graph);
         when(graph.entities()).thenReturn(Stream.empty());
-        when(stalenessProvider.getLastKnownTargetHealth(Mockito.anyLong())).thenReturn(TargetHealth.newBuilder().setHealthState(HealthState.NORMAL).build());
+        when(stalenessProvider.getLastKnownTargetHealth(Mockito.anyLong()))
+                .thenReturn(TargetHealth.newBuilder().setHealthState(HealthState.NORMAL).build());
+        when(pipelineInput.getEntityStore()).thenReturn(entityStore);
+        when(pipelineInput.getStitchingContext()).thenReturn(stitchingContext);
 
         final StitchingStage stitchingStage = new StitchingStage(stitchingManager, journalFactory,
                         container, stalenessProvider);
         final TopologyPipelineContext context = createStageContext(stitchingStage, TEST_TOPOLOGY_INFO);
-        assertThat(stitchingStage.execute(entityStore).getResult().constructTopology(), is(Collections.emptyMap()));
+        assertThat(stitchingStage.execute(pipelineInput).getResult().constructTopology(), is(Collections.emptyMap()));
         assertTrue(container.getMainStitchingJournal().isPresent());
         assertFalse(container.getPostStitchingJournal().isPresent());
 

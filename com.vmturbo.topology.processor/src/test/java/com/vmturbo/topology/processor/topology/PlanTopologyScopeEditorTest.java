@@ -568,6 +568,10 @@ public class PlanTopologyScopeEditorTest {
             35L, Lists.newArrayList(VCPU, VCPUREQ_QUOTA_AZURE, VMPM_ACCESS_KUBEPOD_AZURE)   // pod
     );
 
+    private final TopologyEntity.Builder virtualMachineSpecAzure =
+            createCloudTopologyEntity(900002L, CLOUD_TARGET_2, 0,
+                    EntityType.VIRTUAL_MACHINE_SPEC, regionCanada.getOid());
+
     private final TopologyEntity.Builder kubeCntSpecInAzure
             = createCloudNativeTopologyEntity(34L, "kubeCntSpecInAzure", EntityType.CONTAINER_SPEC,
             Collections.emptyMap(), Collections.emptyList());
@@ -748,7 +752,8 @@ public class PlanTopologyScopeEditorTest {
     private final Set<TopologyEntity.Builder> expectedEntitiesForResourceGroup = Stream
                     .of(dbCentralUs, regionCentralUs, computeTier2, storageTier2,
                             virtualVolumeInCanada, regionCanada, vmInCanada, kubeVmInCanada, businessAcc4,
-                            cloudService, appAzure, businessAcc1, businessAcc2, businessAcc3)
+                            cloudService, appAzure, virtualMachineSpecAzure,
+                            businessAcc1, businessAcc2, businessAcc3)
                     .collect(Collectors.collectingAndThen(Collectors.toSet(),
                                                           Collections::unmodifiableSet));
 
@@ -822,7 +827,7 @@ public class PlanTopologyScopeEditorTest {
                 storageTier, regionCentralUs, regionCanada, dbCentralUs, dbsCentralUs,
                 computeTier2, storageTier2, virtualVolumeInCentralUs,
                 vmInCentralUs, virtualVolumeInCanada, vmInCanada, businessAcc4, cloudService,
-                appAws, appAzure, unattachedVirtualVolumeInCentralUs,
+                appAws, appAzure, virtualMachineSpecAzure, unattachedVirtualVolumeInCentralUs,
                 unattachedVirtualVolumeInLondon, virtualVolume2InCanada, pod1, cnt1, cntSpec1, podVV,
                     kubeVm1InLondon, kubeVm2InLondon, kubePod1, kubePodVV1, kubeCnt1,
                     kubeCntSpec1, wrkContrller1, namespace1, cntCluster1,
@@ -973,14 +978,29 @@ public class PlanTopologyScopeEditorTest {
     }
 
     /**
+     * Tests to check visibility of {@link EntityType#VIRTUAL_MACHINE_SPEC} in scoped topology.
+     */
+    @Test
+    public void testScopedOCPForVirtualMachineSpec() {
+        // Only Business account and Virtual Machine Spec.
+        final List<Long> oidsList = Collections.singletonList(900002L);
+        final Set<TopologyEntity.Builder> expectedEntities =
+                expectedEntitiesForResourceGroup.stream().filter(
+                        e -> EntityType.VIRTUAL_MACHINE_SPEC_VALUE == e.getEntityType()
+                                || EntityType.BUSINESS_ACCOUNT_VALUE == e.getEntityType())
+                        .collect(Collectors.toSet());
+        testScopeCloudTopology(oidsList, expectedEntities, true);
+    }
+
+    /**
      * Tests scope cloud topology for the plan scope with resource group of DB and virtual volume.
      * Topology graph contains entities for 3 targets: hypervisor and 2 clouds.
      * expectedEntitiesForResourceGroup - set of cloud entities expected as result of applying plan scope to the topology.
      */
     @Test
     public void testScopeCloudTopologyForResourceGroup() {
-        // DB in Central US and Virtual Volume in Canada
-        final List<Long> oidsList = Arrays.asList(8002L, 6005L);
+        // DB in Central US and Virtual Volume in Canada, VirualMachineSpec in Canada
+        final List<Long> oidsList = Arrays.asList(8002L, 6005L, 900002L);
         testScopeCloudTopology(oidsList, expectedEntitiesForResourceGroup);
     }
 

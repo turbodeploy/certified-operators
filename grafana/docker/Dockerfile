@@ -50,6 +50,7 @@ RUN groupadd -g $grafana_group grafana && useradd -r -g $grafana_group -s /bin/b
 # when this is repeated in final build
 RUN dnf install -y --nobest python3-devel
 RUN dnf install -y --nobest gcc && \
+    dnf update -y krb5-libs \
     dnf clean all && \
     python3 -m pip install --upgrade pip
 
@@ -88,6 +89,8 @@ RUN dnf install -y wget && \
        wget https://dl.grafana.com/$path/grafana-$v.linux-amd64.tar.gz \
            -nv --show-progress --progres=bar:force:noscrolls:giga; \
     done
+RUN dnf update -y krb5-libs
+
 
 WORKDIR /grafana-fetch
 
@@ -149,6 +152,7 @@ RUN curl http://mirror.centos.org/centos/RPM-GPG-KEY-CentOS-Official -s -o /etc/
     # Install common libs that every component has
 RUN curl https://dl.fedoraproject.org/pub/epel/epel-release-latest-8.noarch.rpm -s -o /etc/yum.repos.d/epel-release-latest-8.noarch.rpm && \
     dnf install -y --nobest rsyslog procps-ng && \
+    dnf update -y krb5-libs \
     # clean up
     dnf clean all
 

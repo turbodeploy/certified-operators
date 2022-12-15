@@ -107,6 +107,24 @@ public class TargetHealthRetrieverTest {
     private static final Scheduler scheduler = mock(Scheduler.class);
 
     /**
+     * Public method to return a TargetHealthRetriever constructor outside the package
+     * (used in TopologyPipelineFactoryFromDiagsTest).
+     * @param operationManager to use in the constructor
+     * @param targetStatusTracker to use in the constructor
+     * @param targetStore to use in the constructor
+     * @param probeStore to use in the constructor
+     * @param clock to use in the constructor
+     * @param settingServiceClient to use in the constructor
+     * @return a new instance of TargetHealthRetriever
+     */
+    public static TargetHealthRetriever createInstance(IOperationManager operationManager,
+            TargetStatusTracker targetStatusTracker, TargetStore targetStore, ProbeStore probeStore,
+            Clock clock, SettingServiceBlockingStub settingServiceClient) {
+        return new TargetHealthRetriever(operationManager, targetStatusTracker, targetStore,
+                probeStore, clock, settingServiceClient);
+    }
+
+    /**
      * Common setup before each test.
      * @throws IOException can theoretically be thrown by grpcServer.start()
      */

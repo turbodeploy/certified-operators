@@ -1,0 +1,1 @@
+DROP TABLE hist_entity_reserved_instance_mapping;

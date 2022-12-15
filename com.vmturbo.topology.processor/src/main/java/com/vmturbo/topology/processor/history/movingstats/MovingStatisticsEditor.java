@@ -30,8 +30,10 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
 import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommodityBoughtImpl;
 import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommoditySoldImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TypeSpecificInfoImpl.ContainerSpecInfoView;
 import com.vmturbo.components.common.diagnostics.DiagsZipReader;
 import com.vmturbo.components.common.utils.ThrowingFunction;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.CPUThrottlingType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.NotificationDTO.Severity;
 import com.vmturbo.platform.sdk.common.util.Pair;
@@ -116,7 +118,14 @@ public class MovingStatisticsEditor extends BlobPersistingCachingHistoricalEdito
         if (entity.getEntityType() != EntityType.CONTAINER_SPEC_VALUE) {
             return false;
         }
-
+        if (!entity.getTypeSpecificInfo().hasContainerSpec()) {
+            return false;
+        }
+        ContainerSpecInfoView containerSpecInfo = entity.getTypeSpecificInfo().getContainerSpec();
+        if (!containerSpecInfo.hasCpuThrottlingType()
+                || containerSpecInfo.getCpuThrottlingType() != CPUThrottlingType.timeBased) {
+            return false;
+        }
         return super.isEntityApplicable(entity);
     }
 

@@ -1341,7 +1341,7 @@ public class EntityStore {
                 return targetDataMap.get(targetId);
             } else {
 
-                logger.info("Linking target ID {} to the following targets:\n{}", () -> targetId, () -> Joiner.on(",").join(linkedTargetIds));
+                logger.debug("Linking target ID {} to the following targets:\n{}", () -> targetId, () -> Joiner.on(",").join(linkedTargetIds));
 
                 final Map<String, StitchingEntityData> mergedTargetDataMap = new HashMap<>(targetDataMap.get(targetId));
 

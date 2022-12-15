@@ -59,12 +59,15 @@ import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl;
 import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl.AnalysisSettingsImpl;
 import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl.DiscoveryOriginImpl;
 import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl.OriginImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TypeSpecificInfoImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TypeSpecificInfoImpl.ContainerSpecInfoImpl;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.components.common.diagnostics.DiagnosticsException;
 import com.vmturbo.components.common.diagnostics.Diags;
 import com.vmturbo.components.common.diagnostics.DiagsZipReader;
 import com.vmturbo.components.common.diagnostics.ZipStreamBuilder;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.CPUThrottlingType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityOrigin;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.util.Pair;
@@ -346,6 +349,17 @@ public class MovingStatisticsEditorTest extends MovingStatisticsBaseTest {
                             new PerTargetEntityInformationImpl()
                                 .setOrigin(EntityOrigin.PROXY))))).build()));
 
+        // Moving statistics not applicable for entity without time-based CPU throttling metrics
+        Assert.assertFalse(movingStatisticsEditor.isEntityApplicable(TopologyEntity.newBuilder(
+            new TopologyEntityImpl()
+                .setEntityType(EntityType.CONTAINER_SPEC_VALUE)
+                .setOrigin(new OriginImpl()
+                    .setDiscoveryOrigin((new DiscoveryOriginImpl()
+                        .putDiscoveredTargetData(1L,
+                            new PerTargetEntityInformationImpl()
+                                .setOrigin(EntityOrigin.DISCOVERED)))))
+        ).build()));
+
         // moving statistics should still be set for controllable false entity if it is ContainerSpec
         Assert.assertTrue(movingStatisticsEditor.isEntityApplicable(TopologyEntity.newBuilder(
             new TopologyEntityImpl()
@@ -355,7 +369,10 @@ public class MovingStatisticsEditorTest extends MovingStatisticsBaseTest {
                         .putDiscoveredTargetData(1L,
                             new PerTargetEntityInformationImpl()
                                 .setOrigin(EntityOrigin.DISCOVERED)))))
-                .setAnalysisSettings(new AnalysisSettingsImpl().setControllable(false)))
+                .setAnalysisSettings(new AnalysisSettingsImpl().setControllable(false))
+                .setTypeSpecificInfo(new TypeSpecificInfoImpl()
+                    .setContainerSpec(new ContainerSpecInfoImpl()
+                        .setCpuThrottlingType(CPUThrottlingType.timeBased))))
             .build()));
     }
 

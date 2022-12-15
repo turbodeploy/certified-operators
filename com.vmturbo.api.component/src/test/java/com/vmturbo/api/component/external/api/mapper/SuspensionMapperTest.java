@@ -589,6 +589,57 @@ public class SuspensionMapperTest extends TestCase {
         }
     }
 
+
+    /**
+     * verifies the conversion of API time spans based schedule creation to gRPC request without description.
+     */
+    @Test
+    public void testToCreateTimespanScheduleRequestNoDescription() {
+        SuspendItemApiDTO policy = new SuspendItemApiDTO();
+        policy.setState(SuspensionTimeSpanState.ON);
+        TimeSpanApiDTO timeSpanApiDTO = new TimeSpanApiDTO();
+        timeSpanApiDTO.setPolicy(policy);
+        timeSpanApiDTO.setBegins("00:15");
+        timeSpanApiDTO.setEnds("01:00");
+        List<TimeSpanApiDTO> timespans = new ArrayList<>();
+        timespans.add(timeSpanApiDTO);
+        WeekDayTimeSpansApiDTO weekDayTimeSpansApiDTO = new WeekDayTimeSpansApiDTO();
+        weekDayTimeSpansApiDTO.setSaturday(timespans);
+        String uuid = "random_uuid";
+        String name = "dummy_name";
+        String timeZone = "IST";
+        ScheduleTimeSpansApiDTO scheduleTimeSpansApiDTO = new ScheduleTimeSpansApiDTO(uuid, name,
+                null, timeZone, weekDayTimeSpansApiDTO);
+
+        CreateTimespanScheduleRequest.Builder want = CreateTimespanScheduleRequest.getDefaultInstance().newBuilder();
+        want.setName(name);
+        want.setTimezone(timeZone);
+        TimeOfDay.Builder beginsTod = TimeOfDay.getDefaultInstance().newBuilder();
+        beginsTod.setHours(0);
+        beginsTod.setMinutes(15);
+        TimeOfDay.Builder endTod = TimeOfDay.getDefaultInstance().newBuilder();
+        endTod.setHours(1);
+        endTod.setMinutes(0);
+
+        Timespan.Builder timespan = Timespan.getDefaultInstance().newBuilder();
+        timespan.setBegins(beginsTod.build());
+        timespan.setEnds(endTod.build());
+        timespan.setState(TimespanState.TS_ON);
+        List<Timespan> tsList = new ArrayList<>();
+        tsList.add(timespan.build());
+
+        WeekDayTimespans.Builder grpcTimespans = WeekDayTimespans.getDefaultInstance().newBuilder();
+        grpcTimespans.addAllSaturday(tsList);
+        want.setTimespans(grpcTimespans.build());
+
+        try {
+            CreateTimespanScheduleRequest got = testSuspensionMapper.toCreateTimespanScheduleRequest(scheduleTimeSpansApiDTO);
+            assertEquals(want.build(), got);
+        } catch (Exception e) {
+            TestCase.fail();
+        }
+    }
+
     /**
      * verifies the conversion of gRPC time span based schedule creation to API response format.
      */
@@ -691,6 +742,57 @@ public class SuspensionMapperTest extends TestCase {
         want.setDescription(description);
         want.setName(name);
         want.setDescription(description);
+        want.setTimezone(timeZone);
+        TimeOfDay.Builder beginsTod = TimeOfDay.getDefaultInstance().newBuilder();
+        beginsTod.setHours(0);
+        beginsTod.setMinutes(15);
+        TimeOfDay.Builder endTod = TimeOfDay.getDefaultInstance().newBuilder();
+        endTod.setHours(1);
+        endTod.setMinutes(0);
+
+        Timespan.Builder timespan = Timespan.getDefaultInstance().newBuilder();
+        timespan.setBegins(beginsTod.build());
+        timespan.setEnds(endTod.build());
+        timespan.setState(TimespanState.TS_ON);
+        List<Timespan> tsList = new ArrayList<>();
+        tsList.add(timespan.build());
+
+        WeekDayTimespans.Builder grpcTimespans = WeekDayTimespans.getDefaultInstance().newBuilder();
+        grpcTimespans.addAllSaturday(tsList);
+        want.setTimespans(grpcTimespans.build());
+
+        try {
+            UpdateTimespanScheduleRequest got = testSuspensionMapper.toUpdateTimespanScheduleRequest(uuid, scheduleTimeSpansApiDTO);
+            assertEquals(want.build(), got);
+        } catch (Exception e) {
+            TestCase.fail();
+        }
+    }
+
+    /**
+     * verifies the conversion of API time spans based schedule update to gRPC request without description.
+     */
+    @Test
+    public void testToUpdateTimespanScheduleRequestNoDescription() {
+        SuspendItemApiDTO policy = new SuspendItemApiDTO();
+        policy.setState(SuspensionTimeSpanState.ON);
+        TimeSpanApiDTO timeSpanApiDTO = new TimeSpanApiDTO();
+        timeSpanApiDTO.setPolicy(policy);
+        timeSpanApiDTO.setBegins("00:15");
+        timeSpanApiDTO.setEnds("01:00");
+        List<TimeSpanApiDTO> timespans = new ArrayList<>();
+        timespans.add(timeSpanApiDTO);
+        WeekDayTimeSpansApiDTO weekDayTimeSpansApiDTO = new WeekDayTimeSpansApiDTO();
+        weekDayTimeSpansApiDTO.setSaturday(timespans);
+        String uuid = "1234";
+        String name = "dummy_name";
+        String timeZone = "IST";
+        ScheduleTimeSpansApiDTO scheduleTimeSpansApiDTO = new ScheduleTimeSpansApiDTO(uuid, name,
+                null, timeZone, weekDayTimeSpansApiDTO);
+
+        UpdateTimespanScheduleRequest.Builder want = UpdateTimespanScheduleRequest.getDefaultInstance().newBuilder();
+        want.setOid(1234);
+        want.setName(name);
         want.setTimezone(timeZone);
         TimeOfDay.Builder beginsTod = TimeOfDay.getDefaultInstance().newBuilder();
         beginsTod.setHours(0);

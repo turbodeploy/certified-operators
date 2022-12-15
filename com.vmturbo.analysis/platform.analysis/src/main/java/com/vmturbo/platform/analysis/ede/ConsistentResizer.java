@@ -255,6 +255,18 @@ public class ConsistentResizer {
                     // are referring to the largest amount that we will need to decrease the new
                     // capacity.
                     ConsistentScalingNumber availableHeadroomPerConsumer = headroom.dividedByFactor(numConsumers);
+                    // for resize down actions maxOldCapacity is zero
+                    if (maxOldCapacity.equals(ConsistentScalingNumber.ZERO))
+                    {
+                        // for a resize down action if the computed headroom for any host is less
+                        // than zero abort the resize action for the consistent scaling
+                        // group as the host does not have enough available headroom to accomodate
+                        // the VM's resize
+                        logger.warn("Skipping resize generation for {} because of insuffucient headroom",
+                                resizes.get(0).getResize().getSellingTrader().getScalingGroupId());
+                        return;
+
+                    }
                     if (availableHeadroomPerConsumer.isLessThan(maxCapacityAdjustment)) {
                         maxCapacityAdjustment = availableHeadroomPerConsumer;
                         congestedRawMaterial = e.getKey();

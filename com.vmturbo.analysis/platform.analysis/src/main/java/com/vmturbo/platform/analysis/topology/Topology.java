@@ -7,6 +7,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import com.google.common.collect.BiMap;
 import com.google.common.collect.HashBiMap;
@@ -205,6 +206,10 @@ public final class Topology implements Serializable {
      */
     public void addToModifiableCommodityProducesDependencyMap(@NonNull Integer key, @NonNull List<@NonNull Integer> value) {
         economy_.addToModifiableCommodityProducesDependencyMap(key, value);
+    }
+
+    public @NonNull Map<Integer, Set<Integer>> getModifiableCommoditiesToIgnoreForProvisionAndSuspensionMap() {
+        return economy_.getModifiableCommoditiesToIgnoreForProvisionAndSuspensionMap();
     }
 
     /**

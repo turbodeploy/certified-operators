@@ -359,7 +359,7 @@ public class Stages {
      * Stitching can happen in both the live topology broadcast and the plan topology broadcast if
      * the plan is on top of the "live" topology.
      */
-    public static class StitchingStage extends Stage<EntityStore, StitchingContext> {
+    public static class StitchingStage extends Stage<PipelineInput, StitchingContext> {
 
         /**
          * A metric that tracks duration of preparation for stitching.
@@ -389,11 +389,19 @@ public class Stages {
         @NotNull
         @Nonnull
         @Override
-        public StageResult<StitchingContext> executeStage(@NotNull @Nonnull final EntityStore entityStore) {
+        public StageResult<StitchingContext> executeStage(@NotNull @Nonnull final PipelineInput pipelineInput) {
             final StitchingContext stitchingContext;
-            try (DataMetricTimer preparationTimer = STITCHING_PREPARATION_DURATION_SUMMARY.startTimer();
-                 TracingScope scope = Tracing.trace("constructStitchingContext")) {
-                stitchingContext = entityStore.constructStitchingContext(stalenessProvider);
+            /** If Feature Flag "USE_EXTENDABLE_PIPELINE_INPUT" is disabled (default), execute the
+             * Stitching Stage as originally. If it is disabled, the Stitching Context is already
+             * constructed, so get it from the Pipeline Input object and proceed with the stitching.
+             */
+            if (!FeatureFlags.USE_EXTENDABLE_PIPELINE_INPUT.isEnabled()) {
+                try (DataMetricTimer preparationTimer = STITCHING_PREPARATION_DURATION_SUMMARY.startTimer();
+                     TracingScope scope = Tracing.trace("constructStitchingContext")) {
+                    stitchingContext = pipelineInput.getEntityStore().constructStitchingContext(stalenessProvider);
+                }
+            } else {
+                stitchingContext = pipelineInput.getStitchingContext();
             }
 
             final IStitchingJournal<StitchingEntity> journal = journalFactory.stitchingJournal(stitchingContext);
@@ -420,7 +428,10 @@ public class Stages {
                     .append(" empty changesets in journal\n");
             }
             metrics.summarizeNonJournalChanges(statusBuilder, context.size());
-            entityStore.sendMetricsEntityAndTargetData();
+            // If the Feature Flag is enabled, this is called from the Pipeline Input builder.
+            if (!FeatureFlags.USE_EXTENDABLE_PIPELINE_INPUT.isEnabled()) {
+                pipelineInput.getEntityStore().sendMetricsEntityAndTargetData();
+            }
             return StageResult.withResult(context)
                 .andStatus(Status.success(statusBuilder.toString()));
         }
@@ -695,7 +706,7 @@ public class Stages {
      * This stage is only added to pipelines after checking that the cache is not empty.
      */
     public static class CachingConstructTopologyFromStitchingContextStage
-        extends Stage<EntityStore, Map<Long, TopologyEntityDTO.Builder>> {
+        extends Stage<PipelineInput, Map<Long, TopologyEntityDTO.Builder>> {
 
         /**
          * Cache that will be filled by CacheWritingConstructTopologyFromStitchingContextStage
@@ -710,7 +721,7 @@ public class Stages {
         @NotNull
         @Nonnull
         @Override
-        public StageResult<Map<Long, TopologyEntityDTO.Builder>> executeStage(@NotNull @Nonnull final EntityStore entityStore) {
+        public StageResult<Map<Long, TopologyEntityDTO.Builder>> executeStage(@NotNull @Nonnull final PipelineInput pipelineInput) {
             final CachedTopologyResult result = resultCache.getTopology();
             return StageResult.withResult(result.getEntities())
                 .andStatus(Status.success(result.toString()));

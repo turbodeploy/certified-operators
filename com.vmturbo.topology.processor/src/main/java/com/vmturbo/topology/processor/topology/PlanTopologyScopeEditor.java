@@ -89,7 +89,8 @@ public class PlanTopologyScopeEditor {
             EntityType.DATABASE,
             EntityType.DATABASE_SERVER,
             EntityType.VIRTUAL_VOLUME,
-            EntityType.AVAILABILITY_ZONE)
+            EntityType.AVAILABILITY_ZONE,
+            EntityType.VIRTUAL_MACHINE_SPEC)
             .collect(Collectors.collectingAndThen(Collectors.toSet(),
                                                           Collections::unmodifiableSet));
 

@@ -13,6 +13,7 @@ import java.util.stream.Stream;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.Lists;
 
+import com.vmturbo.platform.analysis.economy.CommoditySpecification;
 import com.vmturbo.platform.analysis.pricefunction.PriceFunctionFactory;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -374,6 +375,12 @@ public class Suspension {
 
             if (isProviderOfResizeThroughSupplier) {
                 for (ShoppingList sl : resizeThroughSupplierCustomers) {
+                    // the quote should not be affected by the unquoted commodity as  the
+                    // provisioned commodity are unquoted and we dont want the host to be suspended
+                    // if the cluster is full.. so dont ignore the Unquoted Commodities..
+                    List<Integer> unquotedCommodities = new ArrayList<>();
+                    unquotedCommodities.addAll(sl.getModifiableUnquotedCommoditiesBaseTypeList());
+                    sl.getModifiableUnquotedCommoditiesBaseTypeList().clear();
                     // skip vsan storage's shopping list when considering reverse suspension
                     if (Utility.isUnmovableRTSShoppingList(sl)) {
                         continue;
@@ -383,6 +390,7 @@ public class Suspension {
                     final QuoteMinimizer minimizer = sellers.stream()
                                             .collect(() -> new QuoteMinimizer(economy, sl),
                                                     QuoteMinimizer::accept, QuoteMinimizer::combine);
+                    sl.getModifiableUnquotedCommoditiesBaseTypeList().addAll(unquotedCommodities);
                     if (Double.isInfinite(minimizer.getTotalBestQuote())) {
                         return rollBackSuspends(suspendActions);
                     }
@@ -482,10 +490,16 @@ public class Suspension {
      */
     @VisibleForTesting
     public static void adjustUtilThreshold(Economy economy, boolean update) {
-        if (update) {
-            for (Trader seller : economy.getTraders()) {
-                double util = seller.getSettings().getMaxDesiredUtil();
-                for (CommoditySold cs : seller.getCommoditiesSold()) {
+        for (Trader seller : economy.getTraders()) {
+            for (int index = 0; index < seller.getCommoditiesSold().size(); index++) {
+                CommoditySold cs = seller.getCommoditiesSold().get(index);
+                CommoditySpecification commoditySpecification = seller.getBasketSold().get(
+                        index);
+                if (economy.ignoreCommodityForProvisionAndSuspension(commoditySpecification, seller)) {
+                    continue;
+                }
+                if (update) {
+                    double util = seller.getSettings().getMaxDesiredUtil();
                     double utilThreshold = cs.getSettings().getUtilizationUpperBound();
                     PriceFunction pf = cs.getSettings().getPriceFunction();
                     double priceAtMaxUtil = pf.unitPrice(util * utilThreshold, null, seller, cs, economy);
@@ -494,11 +508,7 @@ public class Suspension {
                           (priceAtMaxUtil == pf.unitPrice(1.0, null, seller, cs, economy)))) {
                         cs.getSettings().setUtilizationUpperBound(util * utilThreshold);
                     }
-                }
-            }
-        } else {
-            for (Trader seller : economy.getTraders()) {
-                for (CommoditySold cs : seller.getCommoditiesSold()) {
+                } else {
                     CommoditySoldSettings csSett = cs.getSettings();
                     csSett.setUtilizationUpperBound(csSett.getOrigUtilizationUpperBound());
                 }

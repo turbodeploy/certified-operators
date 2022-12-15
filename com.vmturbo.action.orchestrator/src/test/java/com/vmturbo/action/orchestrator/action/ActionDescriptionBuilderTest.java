@@ -351,6 +351,9 @@ public class ActionDescriptionBuilderTest {
 
     private EntitiesAndSettingsSnapshot entitySettingsCache = mock(EntitiesAndSettingsSnapshot.class);
 
+    private static final ReasonCommodity CLUSTER =
+            createReasonCommodity(CommodityDTO.CommodityType.CLUSTER_VALUE, "Node-1-NotReady");
+
     @Before
     public void setup() {
         IdentityGenerator.initPrefix(0);
@@ -2743,5 +2746,32 @@ public class ActionDescriptionBuilderTest {
                 && description.contains("VCPU Limit")
                 && description.contains("VMem Limit"));
         assertTrue(description.endsWith("Workload Controller controller1_test"));
+    }
+
+    /**
+     * Test description for Reconfigure action for NotReady node.
+     *
+     * @throws UnsupportedActionException  In case of unsupported action type.
+     */
+    @Test
+    public void testReconfigureForNotReadyNodeDescription() throws UnsupportedActionException {
+        Explanation reconfigureExplanation1 = Explanation.newBuilder()
+                .setReconfigure(ReconfigureExplanation.newBuilder()
+                        .addReconfigureCommodity(CLUSTER)).build();
+        reconfigureReasonCommoditiesRecommendation = makeRec(
+                makeReconfigureInfo(VM1_ID, CONTAINER1_ID), SupportLevel.SUPPORTED,
+                reconfigureExplanation1).build();
+
+        when(entitySettingsCache.getEntityFromOid(eq(VM1_ID)))
+                .thenReturn((createEntity(VM1_ID,
+                        EntityType.VIRTUAL_MACHINE.getNumber(),
+                        VM1_DISPLAY_NAME, 0, 0)));
+
+        when(entitySettingsCache.getOwnerAccountOfEntity(eq(VM1_ID)))
+                .thenReturn(Optional.empty());
+
+        String description = ActionDescriptionBuilder.buildActionDescription(
+                entitySettingsCache, reconfigureReasonCommoditiesRecommendation);
+        assertEquals("Reconfigure Virtual Machine vm1_test", description);
     }
 }

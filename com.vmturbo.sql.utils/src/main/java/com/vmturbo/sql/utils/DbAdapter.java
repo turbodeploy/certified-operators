@@ -5,7 +5,9 @@ import java.sql.SQLException;
 import java.sql.Statement;
 import java.time.Duration;
 import java.time.temporal.ChronoUnit;
+import java.util.HashSet;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ThreadFactory;
@@ -22,6 +24,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.springframework.web.util.UriComponentsBuilder;
 
+import com.vmturbo.components.api.SetOnce;
 import com.vmturbo.sql.utils.DbEndpoint.DbEndpointAccess;
 import com.vmturbo.sql.utils.DbEndpoint.DbEndpointException;
 import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
@@ -95,6 +98,13 @@ public abstract class DbAdapter {
 
     // singleton
     private DataSource pooledDataSource;
+
+    // keep track of the objects we created during initial provisioning, so we can take care not
+    // to remove anything during tear-down that we didn't create!
+    protected final SetOnce<Boolean> createdUser = new SetOnce<>();
+    protected final SetOnce<Boolean> createdDatabase = new SetOnce<>();
+    protected final SetOnce<Boolean> createdSchema = new SetOnce<>();
+    protected final Set<String> createdGroups = new HashSet<>();
 
     protected DbAdapter(DbEndpointConfig config) {
         this.config = config;
@@ -659,5 +669,24 @@ public abstract class DbAdapter {
      */
     protected static SQLException copySQLExceptionWithoutStack(String msg, SQLException e) {
         return new SQLException(msg, e.getSQLState(), e.getErrorCode());
+    }
+
+    protected void setCreatedUser(boolean value) {
+        trySetOnce(createdUser, value, "createdUser");
+    }
+
+    protected void setCreatedDatabase(boolean value) {
+        trySetOnce(createdDatabase, value, "createdDatabase");
+    }
+
+    protected void setCreatedSchema(boolean value) {
+        trySetOnce(createdSchema, value, "createdSchema");
+    }
+
+    private <T> void trySetOnce(SetOnce<T> setOnce, T value, String name) {
+        if (!setOnce.trySetValue(value)) {
+            logger.warn("Can't set variable {} because it's already set to {}",
+                    name, setOnce.getValue());
+        }
     }
 }

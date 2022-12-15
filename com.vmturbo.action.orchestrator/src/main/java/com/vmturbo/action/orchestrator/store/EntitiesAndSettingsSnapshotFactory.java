@@ -3,6 +3,7 @@ package com.vmturbo.action.orchestrator.store;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Objects;
@@ -37,10 +38,10 @@ import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc;
 import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc.SettingPolicyServiceBlockingStub;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettingFilter;
 import com.vmturbo.common.protobuf.setting.SettingProto.GetEntitySettingsRequest;
+import com.vmturbo.common.protobuf.setting.SettingProto.GetEntitySettingsResponse;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.setting.SettingProto.TopologySelection;
 import com.vmturbo.common.protobuf.setting.SettingProto.TopologySelection.Builder;
-import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ActionPartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.EntityWithConnections;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
@@ -450,6 +451,36 @@ public class EntitiesAndSettingsSnapshotFactory implements RepositoryListener {
         } catch (StatusRuntimeException e) {
             logger.error("Failed to retrieve entity settings due to error: " + e.getMessage());
             return Collections.emptyMap();
+        }
+    }
+
+    /**
+     * Get all entity settings.
+     *
+     * @param topologyContextId The topology context of the topology broadcast that
+     *         triggered the cache update.
+     * @return Iterator of all {@link GetEntitySettingsResponse}.
+     */
+    @Nonnull
+    public Iterator<GetEntitySettingsResponse> getEntitySettings(final long topologyContextId) {
+        // We don't currently upload action-relevant settings in plans,
+        // so no point trying to get them.
+        if (topologyContextId != realtimeTopologyContextId) {
+            return Collections.emptyIterator();
+        }
+
+        try {
+            final Builder builder = TopologySelection.newBuilder()
+                .setTopologyContextId(topologyContextId);
+            final GetEntitySettingsRequest request = GetEntitySettingsRequest.newBuilder()
+                    .setTopologySelection(builder)
+                    // .setSettingFilter(EntitySettingFilter.newBuilder())
+                    .setIncludeSettingPolicies(true)
+                    .build();
+            return settingPolicyService.getEntitySettings(request);
+        } catch (StatusRuntimeException e) {
+            logger.error("Failed to retrieve entity settings due to error: " + e.getMessage());
+            return Collections.emptyIterator();
         }
     }
 

@@ -11,7 +11,10 @@ import static org.mockito.Mockito.when;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.Arrays;
+import java.util.Collection;
 import java.util.List;
+import java.util.TimeZone;
 
 import javax.annotation.Nonnull;
 
@@ -34,6 +37,7 @@ import com.vmturbo.api.dto.statistic.StatFilterApiDTO;
 import com.vmturbo.api.dto.statistic.StatSnapshotApiDTO;
 import com.vmturbo.api.dto.statistic.StatValueApiDTO;
 import com.vmturbo.api.enums.Epoch;
+import com.vmturbo.api.utils.DateTimeUtil;
 import com.vmturbo.common.protobuf.cost.BilledCost.BilledCostStat;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.utils.StringConstants;
@@ -96,6 +100,36 @@ public class BilledCostStatsMapperTest {
         final StatFilterApiDTO secondFilter = actualStatDto.getFilters().get(1);
         assertThat(secondFilter.getType(), equalTo("tagValue"));
         assertThat(secondFilter.getValue(), equalTo("tagValueTest"));
+    }
+
+    /**
+     * Test that the results returned by
+     * {@link BilledCostStatsMapper#convertBilledCostStats(Collection)} are in date order from
+     * earliest to latest.
+     */
+    @Test
+    public void testBilledCostStatsInDateOrder() throws IOException {
+        final String date1 = "1670716800000"; // 2022-12-11T00:00:00
+        final String date2 = "1670803200000"; // 2022-12-12T00:00:00
+        final String date3 = "1670889600000"; // 2022-12-13T00:00:00
+        final BilledCostStat stat1 = BilledCostStat.newBuilder().setSampleTsUtc(
+                DateTimeUtil.parseTime(date1)).build();
+        final BilledCostStat stat2 = BilledCostStat.newBuilder().setSampleTsUtc(
+                DateTimeUtil.parseTime(date2)).build();
+        final BilledCostStat stat3 = BilledCostStat.newBuilder().setSampleTsUtc(
+                DateTimeUtil.parseTime(date3)).build();
+
+        final List<StatSnapshotApiDTO> statSnapshotList = statsMapper.convertBilledCostStats(
+                Arrays.asList(stat2, stat3, stat1));
+        assertThat(statSnapshotList, hasSize(3));
+
+        final TimeZone utc = TimeZone.getTimeZone("UTC");
+        assertThat(statSnapshotList.get(0).getDate(),
+                equalTo(DateTimeUtil.toString(Long.parseLong(date1), utc)));
+        assertThat(statSnapshotList.get(1).getDate(),
+                equalTo(DateTimeUtil.toString(Long.parseLong(date2), utc)));
+        assertThat(statSnapshotList.get(2).getDate(),
+                equalTo(DateTimeUtil.toString(Long.parseLong(date3), utc)));
     }
 
     /**

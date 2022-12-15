@@ -33,12 +33,16 @@ import com.vmturbo.sql.utils.DbPropertyProvider;
 @Configuration
 public class KibitzerDb extends DbEndpointsConfig {
     private static final Logger logger = LogManager.getLogger();
+    private static final String KIBITZER_DB_PREFIX = "kibitzer_";
 
     @Autowired
     private Environment env;
 
     @Value("${sqlDialect}")
     private SQLDialect dialect;
+
+    @Value("${dbAutoprovision:false}")
+    boolean dbAutoprovision;
 
     private final Map<String, DbEndpoint> endpoints = Collections.synchronizedMap(new HashMap<>());
 
@@ -91,7 +95,9 @@ public class KibitzerDb extends DbEndpointsConfig {
             if (endpoint != null) {
                 try {
                     endpoints.remove(key);
-                    endpoint.getAdapter().tearDown();
+                    if (endpoint.getConfig().getShouldProvisionDatabase() && dbAutoprovision) {
+                        endpoint.getAdapter().tearDown();
+                    }
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();
                 }
@@ -117,20 +123,19 @@ public class KibitzerDb extends DbEndpointsConfig {
             return null;
         } else {
             boolean copyMode = isCopyMode(dbMode);
-            String prefix = copyMode ? tag + "_" : "";
+            String prefix = copyMode ? KIBITZER_DB_PREFIX : "";
             String endpointName = String.join(".", "dbs", componentInfo.getName(), tag);
             DbPropertyProvider dbPropertyProvider = componentInfo.getDbPropertyProvider(context);
             DbEndpointBuilder builder = dbEndpoint(endpointName, dialect)
-                    .withDatabaseName(dbPropertyProvider.getDatabaseName())
-                    .withSchemaName(dbPropertyProvider.getSchemaName())
+                    .withDatabaseName(prefix + dbPropertyProvider.getDatabaseName())
+                    .withSchemaName(prefix + dbPropertyProvider.getSchemaName())
                     .withUserName(dbPropertyProvider.getUserName())
                     .withPassword(dbPropertyProvider.getPassword())
-                    .withProvisioningPrefix(prefix)
-                    .withShouldProvision(copyMode)
-                    .withRootAccessEnabled(copyMode)
+                    .withShouldProvision(copyMode && dbAutoprovision)
+                    .withRootAccessEnabled(copyMode && dbAutoprovision)
                     .withAccess(DbEndpointAccess.ALL)
                     .withUseConnectionPool(false);
-            return fixEndpointForMultiDb(builder).build();
+            return fixEndpointForMultiDb(builder, componentInfo.getName()).build();
         }
     }
 

@@ -15,7 +15,7 @@ public interface PricingKey {
     /**
      * Convert the key to an equivalent list of price table identifiers.
      *
-     * @return a list of price table identifiers quivalent to the key.
+     * @return a list of price table identifiers equivalent to the key.
      */
     @Nonnull
     List<PricingIdentifier> getPricingIdentifiers();

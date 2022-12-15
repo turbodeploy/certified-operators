@@ -130,7 +130,7 @@ public class DerivedTargetParser {
 
             final TargetLinkInfoDTO linkInfoDTO = derivedTargetDTO.getTargetLinkInfo();
 
-            logger.info("Processing link information for probe ID {} from parent target ID {}:\n{}",
+            logger.debug("Processing link information for probe ID {} from parent target ID {}:\n{}",
                     probeId, parentTargetId, linkInfoDTO);
 
 

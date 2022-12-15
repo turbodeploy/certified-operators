@@ -1,5 +1,6 @@
 package com.vmturbo.mediation.azure.pricing.pipeline;
 
+import java.util.Map;
 import java.util.zip.ZipFile;
 
 import com.vmturbo.components.common.pipeline.PipelineContext.PipelineContextMemberDefinition;
@@ -44,4 +45,11 @@ public class PricingPipelineContextMembers {
     public static final PipelineContextMemberDefinition<PriceConverter> PRICE_CONVERTER =
         PipelineContextMemberDefinition.member(PriceConverter.class, "Price Converter",
             converter -> null);
+
+    /**
+     * DBStorage price map.
+     */
+    public static final PipelineContextMemberDefinition<Map> DB_STORAGE_PRICE_MAP =
+            PipelineContextMemberDefinition.member(Map.class, "DBStorage Price Map",
+                    converter -> null);
 }

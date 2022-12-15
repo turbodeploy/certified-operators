@@ -12,14 +12,16 @@ and continue with the [Understanding our product B](https://vmturbo.atlassian.ne
 2. [Maven Build Installation](#maven-build-installation)
 3. [Troubleshooting Common Errors](#troubleshooting-common-errors)
    1. [Database Connection](#database-connection-error)
-   2. [ContainerD](#containerd-error)
+   2. [ContainerD Error](#containerd-error)
    3. [Address Connection](#could-not-connect-to-address)
    4. [Java version](#java-version-error)
 4. [Contributing to the code](#code-contribution)
-5. [XL Development](#https://vmturbo.atlassian.net/wiki/spaces/XD/overview?homepageId=955678946)
-6. [Install Turbonomic XL in the Lab](https://vmturbo.atlassian.net/wiki/spaces/VMTsupport/pages/2774401748/Deploying+the+Turbonomic+OVA)
-7. [Install Turbonomic XL on Kubernetes (Development)](https://vmturbo.atlassian.net/wiki/spaces/DEVOPS/pages/826114160/Turbonomic+XL+on+Kubernetes+Developer)
-8. [Install Turbonomic XL on Kubernetes (Production)](https://vmturbo.atlassian.net/wiki/spaces/DEVOPS/pages/716931392/Turbonomic+XL+on+Kubernetes+Production)
+5. [Install Turbonomic XL in the Lab](https://vmturbo.atlassian.net/wiki/spaces/VMTsupport/pages/2774401748/Deploying+the+Turbonomic+OVA)
+6. [Install Turbonomic XL on Kubernetes (Development)](https://vmturbo.atlassian.net/wiki/spaces/DEVOPS/pages/826114160/Turbonomic+XL+on+Kubernetes+Developer)
+7. [Install Turbonomic XL on Kubernetes (Production)](https://vmturbo.atlassian.net/wiki/spaces/DEVOPS/pages/716931392/Turbonomic+XL+on+Kubernetes+Production)
+8. [XL Development](#https://vmturbo.atlassian.net/wiki/spaces/XD/overview?homepageId=955678946)
+   1. [Working with IntelliJ Editor](https://vmturbo.atlassian.net/wiki/spaces/Home/pages/78971073/Working+with+the+IntelliJ+editor#WorkingwiththeIntelliJeditor-UpdatingMaveninIntellij)
+   2. [Loading Diagnostics into VM](https://vmturbo.atlassian.net/wiki/spaces/CE/pages/3044966418/How+to+load+customer+diagnostics+in+a+lab+instance)
 9. [Operations Manager Test Results](https://vmturbo.testrail.com/index.php?/projects/overview/1)
 10. [Automatic and Manual Test Cases](https://vmturbo.atlassian.net/wiki/spaces/Home/pages/17301567/Development+Targets+and+other+Target+Information#DevelopmentTargetsandotherTargetInformation-AppDynamics%2FDynatrace%2FDatadog%2FApplicationInsights%2FNewRelic%2FInstanaAppDynTrace)
 11. [Test Team Wiki](https://vmturbo.atlassian.net/wiki/spaces/Home/pages/17301528/Test+Team+Wiki)
@@ -141,8 +143,6 @@ You cloned and build locally the XL project and now you are ready to make a cont
 * [Dev Environment Setup Entry](https://vmturbo.atlassian.net/wiki/spaces/XD/pages/3004334117/New+Hire+Onboarding)
 
 * [Turbonomic Platform Operator](https://github.com/turbonomic/t8c-install)
-
-* [Working with IntelliJ Editor](https://vmturbo.atlassian.net/wiki/spaces/Home/pages/78971073/Working+with+the+IntelliJ+editor#WorkingwiththeIntelliJeditor-UpdatingMaveninIntellij)
 
 * [Build Status](http://jnm01.eng.vmturbo.com:8080/view/XL%20Staging/view/job%20overview/job/xl-staging-ci-build/)
 

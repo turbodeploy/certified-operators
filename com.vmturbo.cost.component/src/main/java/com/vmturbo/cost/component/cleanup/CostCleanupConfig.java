@@ -8,7 +8,6 @@ import static com.vmturbo.cost.component.db.Tables.ENTITY_COST;
 import static com.vmturbo.cost.component.db.Tables.ENTITY_COST_BY_DAY;
 import static com.vmturbo.cost.component.db.Tables.ENTITY_COST_BY_HOUR;
 import static com.vmturbo.cost.component.db.Tables.ENTITY_COST_BY_MONTH;
-import static com.vmturbo.cost.component.db.Tables.HIST_ENTITY_RESERVED_INSTANCE_MAPPING;
 import static com.vmturbo.cost.component.db.Tables.RESERVED_INSTANCE_COVERAGE_BY_DAY;
 import static com.vmturbo.cost.component.db.Tables.RESERVED_INSTANCE_COVERAGE_BY_HOUR;
 import static com.vmturbo.cost.component.db.Tables.RESERVED_INSTANCE_COVERAGE_BY_MONTH;
@@ -73,9 +72,6 @@ public class CostCleanupConfig {
 
     @Value("${retention.numRetainedMinutes:130}")
     private int numRetainedMinutes;
-
-    @Value("${histEntityRiCoverageRecordsRollingWindowDays:60}")
-    private long histEntityRiCoverageRecordsRollingWindowDays;
 
     @Value("${tableCleanup.corePoolSize:0}")
     private int cleanupCorePoolSize;
@@ -459,20 +455,6 @@ public class CostCleanupConfig {
                 .numRowsToBatchDelete(entityCostBatchDelete)
                 .build();
         return new CostStatMonthlyTable(dsl, costClock(), cleanupInfo, retentionPeriodFetcher());
-    }
-
-    /**
-     * The cleanup task for {@link Tables#HIST_ENTITY_RESERVED_INSTANCE_MAPPING}.
-     * @return The cleanup task for {@link Tables#HIST_ENTITY_RESERVED_INSTANCE_MAPPING}.
-     */
-    @Bean
-    public CostTableCleanup coverageHistoricalRiPerEntityTable() {
-        final DSLContext dsl = getDslContextForBean("coverageHistoricalRiPerEntityTable");
-        return new CustomRetentionCleanup(dsl, costClock(), TableCleanupInfo.builder()
-                .timeField(HIST_ENTITY_RESERVED_INSTANCE_MAPPING.SNAPSHOT_TIME)
-                .table(HIST_ENTITY_RESERVED_INSTANCE_MAPPING)
-                .build(), RetentionDurationFetcher.staticFetcher(
-                histEntityRiCoverageRecordsRollingWindowDays, ChronoUnit.DAYS));
     }
 
     /**

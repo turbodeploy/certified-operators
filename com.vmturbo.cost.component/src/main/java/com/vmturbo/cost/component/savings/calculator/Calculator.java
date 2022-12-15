@@ -651,7 +651,9 @@ public class Calculator {
                     } else {
                         oldCapacity = adjustCommodityAmount(billingRecordsForCommType, providerId, commType, oldCapacity);
                     }
-                    usageRemaining -= oldCapacity * (firstSegmentTimestamp - startOfDay) / MILLIS_IN_HOUR;
+                    final double adjustedUsageRemaining =
+                            (usageRemaining - oldCapacity * (firstSegmentTimestamp - startOfDay) / MILLIS_IN_HOUR);
+                    usageRemaining = adjustedUsageRemaining > 0 ? adjustedUsageRemaining : 0;
                 }
             }
         }

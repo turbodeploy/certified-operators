@@ -369,7 +369,8 @@ public class TopologyConfig {
             clockConfig.clock(),
             startupDiscoveryMaxDiscoveryWaitMinutes,
             TimeUnit.MINUTES,
-            new ComponentRestartHelper(pipelineFailureHours));
+            new ComponentRestartHelper(pipelineFailureHours),
+            staleDataManager());
     }
 
     /**

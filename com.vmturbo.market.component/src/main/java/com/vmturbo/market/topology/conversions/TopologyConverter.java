@@ -3225,7 +3225,8 @@ public class TopologyConverter {
             }
 
             // Overwrite flags for vSAN
-            if (TopologyConversionUtils.isVsanStorage(topologyDTO)) {
+            if (TopologyConversionUtils.isVsanStorage(topologyDTO) ||
+                    topologyDTO.getEntityType() == EntityType.CLUSTER_VALUE) {
                 settingsBuilder.setGuaranteedBuyer(true).setClonable(false)
                     .setSuspendable(false).setResizeThroughSupplier(true);
             }
@@ -3759,7 +3760,8 @@ public class TopologyConverter {
             && (commBoughtGroupingForSL.hasMovable()
                 ? commBoughtGroupingForSL.getMovable()
                 : AnalysisUtil.MOVABLE_TYPES.contains(entityType));
-        if (TopologyConversionUtils.isVsanStorage(entityForSL)) {
+        if (TopologyConversionUtils.isVsanStorage(entityForSL) ||
+            entityForSL.getEntityType() == EntityType.CLUSTER_VALUE) {
             isMovable = false;
         }
 

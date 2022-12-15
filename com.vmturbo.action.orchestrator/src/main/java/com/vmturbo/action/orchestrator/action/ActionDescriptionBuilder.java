@@ -423,6 +423,15 @@ public class ActionDescriptionBuilder {
                     return ActionMessageFormat.ACTION_DESCRIPTION_RECONFIGURE_LABEL_COMMODITIES.format(
                         beautifyEntityTypeAndName(targetEntityDTO.get()));
                 }
+
+                if(reconfigureCommodities.stream()
+                        .allMatch(comm -> comm.getType() == CommodityType.CLUSTER_VALUE
+                                && comm.getKey().contains("NotReady"))) {
+                    return  getDescriptionWithAccountName(entitiesSnapshot, entityId,
+                            ActionMessageFormat.ACTION_DESCRIPTION_RECONFIGURE_REASON_SETTINGS.format(
+                                    beautifyEntityTypeAndName(targetEntityDTO.get())));
+                }
+
                 return getDescriptionWithAccountName(entitiesSnapshot, entityId,
                         ActionMessageFormat.ACTION_DESCRIPTION_RECONFIGURE_REASON_COMMODITIES.format(
                                 beautifyEntityTypeAndName(targetEntityDTO.get()),

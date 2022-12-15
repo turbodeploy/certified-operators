@@ -230,6 +230,9 @@
                         <dbs.postgresDefault.port>${postgresPort}</dbs.postgresDefault.port>
                         <dbs.postgresDefault.userName>${postgresUserName}</dbs.postgresDefault.userName>
                         <dbs.postgresDefault.password>${postgresPassword}</dbs.postgresDefault.password>
+                        <pipeline.diagsInput.path>${diagsInputPath}</pipeline.diagsInput.path>
+                        <pipeline.diagsBenchmark.compare>${diagsBenchmarkCompare}</pipeline.diagsBenchmark.compare>
+                        <pipeline.diagsBenchmark.save>${diagsBenchmarkSave}</pipeline.diagsBenchmark.save>
                     </systemPropertyVariables>
                 </configuration>
             </plugin>

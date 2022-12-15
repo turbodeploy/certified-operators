@@ -83,6 +83,10 @@ public class DbEndpointBuilder {
         return endpointCompleter.register(config);
     }
 
+    public SQLDialect getDialect() {
+        return config.getDialect();
+    }
+
     /**
      * Specify a host property value for this endpoint.
      *
@@ -414,5 +418,10 @@ public class DbEndpointBuilder {
     public DbEndpointBuilder withProvisioningPrefix(String provisioningPrefix) {
         config.setProvisioningPrefix(provisioningPrefix);
         return this;
+    }
+
+    @Override
+    public String toString() {
+        return config.detailedToString();
     }
 }

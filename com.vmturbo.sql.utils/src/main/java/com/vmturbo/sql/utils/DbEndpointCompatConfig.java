@@ -5,6 +5,8 @@ import static com.vmturbo.sql.utils.DbEndpointResolver.DEFAULT_MAX_POOL_SIZE;
 import static com.vmturbo.sql.utils.DbEndpointResolver.DEFAULT_MIN_POOL_SIZE;
 import static com.vmturbo.sql.utils.DbEndpointResolver.DEFAULT_USE_CONNECTION_POOL;
 
+import java.util.Objects;
+
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Configuration;
@@ -33,26 +35,26 @@ public class DbEndpointCompatConfig {
     private String componentName;
 
     /**
-     * Get the value of a property for this component's non-root DB user name, if configured.
-     * Unlike most DB properties, this property's name depends on the component, according to a
-     * mapping structure maintained in {@link SecretPropertiesReader}.
+     * Get the value of a property for this component's non-root DB user name, if configured. Unlike
+     * most DB properties, this property's name depends on the component, according to a mapping
+     * structure maintained in {@link SecretPropertiesReader}.
      *
      * @return Value of this component's username property or null if not configured
-     * */
-    public String getDbUserName() {
-        String propName = SecretPropertiesReader.getDbUsernamePropertyName(componentName);
+     */
+    public String getDbUserName(String component) {
+        String propName = SecretPropertiesReader.getDbUsernamePropertyName(component);
         return propName != null ? springEnvironment.getProperty(propName) : null;
     }
 
     /**
-     * Get the value of a property for this component's non-root DB user name, if configured.
-     * Unlike most DB properties, this property's name depends on the component, according to a
-     * mapping structure maintained in {@link SecretPropertiesReader}.
+     * Get the value of a property for this component's non-root DB user name, if configured. Unlike
+     * most DB properties, this property's name depends on the component, according to a mapping
+     * structure maintained in {@link SecretPropertiesReader}.
      *
      * @return Value of this component's username property or null if not configured
-     * */
-    private String getDbPassword() {
-        String propName = SecretPropertiesReader.getDbPasswordPropertyName(componentName);
+     */
+    private String getDbPassword(String component) {
+        String propName = SecretPropertiesReader.getDbPasswordPropertyName(component);
         return propName != null ? springEnvironment.getProperty(propName) : null;
     }
 
@@ -116,18 +118,22 @@ public class DbEndpointCompatConfig {
     protected String dbRootPassword;
 
     protected DbEndpointBuilder fixEndpointForMultiDb(DbEndpointBuilder builder) {
+        return fixEndpointForMultiDb(builder, componentName);
+    }
+
+    protected DbEndpointBuilder fixEndpointForMultiDb(DbEndpointBuilder builder, String component) {
         if (dbSchemaName != null) {
             builder = builder.withSchemaName(dbSchemaName)
                     // MySqlFamilyAdapter uses databaseName, not schemaName
                     .withDatabaseName(dbSchemaName);
         }
         // unlike most properties, the dbUsername property includes the component name as a prefix,
-        if (getDbUserName() != null) {
-            builder = builder.withUserName(getDbUserName());
+        if (getDbUserName(component) != null) {
+            builder = builder.withUserName(getDbUserName(component));
         }
         // likewise for dbPassword
-        if (getDbPassword() != null) {
-            builder = builder.withPassword(getDbPassword());
+        if (getDbPassword(component) != null) {
+            builder = builder.withPassword(getDbPassword(component));
         }
         builder = builder.withSecure(isSecureDBConnectionRequested);
         builder = builder.withUseConnectionPool(isConnectionPoolActive);
@@ -152,6 +158,13 @@ public class DbEndpointCompatConfig {
             // as is used in SQLDatabaseConfig, which does not match the built-in default in
             // DbEndpoint
             builder = builder.withMigrationLocations("db.migration");
+        } else if (!Objects.equals(component, componentName)) {
+            // kibitzer needs the host component's migration locations, not its own (non-existent)
+            // locations. Only matters with POSTGRES_PRIMARY_DB because legacy locations do not
+            // include the component name.
+            builder = builder.withMigrationLocations(
+                    DbEndpointResolver.getDefaultMigrationLocations(component,
+                            builder.getDialect()));
         }
         return builder;
     }

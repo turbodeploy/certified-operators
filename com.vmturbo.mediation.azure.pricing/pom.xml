@@ -51,6 +51,11 @@
             <version>${revision}</version>
         </dependency>
         <dependency>
+            <groupId>com.vmturbo</groupId>
+            <artifactId>com.vmturbo.mediation.azure.cost</artifactId>
+            <version>${revision}</version>
+        </dependency>
+        <dependency>
             <!-- https://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2022-31684 -->
             <groupId>io.projectreactor.netty</groupId>
             <artifactId>reactor-netty-http</artifactId>
@@ -140,6 +145,11 @@
             <groupId>com.github.tomakehurst</groupId>
             <artifactId>wiremock-jre8</artifactId>
             <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>commons-codec</groupId>
+            <artifactId>commons-codec</artifactId>
+            <version>${commons-codec.version}</version>
         </dependency>
     </dependencies>
 

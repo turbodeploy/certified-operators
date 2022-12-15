@@ -3,14 +3,18 @@ package com.vmturbo.cost.component.billed.cost;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
+import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyLong;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import java.sql.SQLException;
 import java.time.Duration;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
@@ -25,6 +29,7 @@ import java.util.stream.Collectors;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 
+import io.grpc.StatusException;
 import io.grpc.stub.StreamObserver;
 
 import org.jooq.DSLContext;
@@ -60,6 +65,7 @@ import com.vmturbo.cost.component.billedcosts.TagIdentityService;
 import com.vmturbo.cost.component.billedcosts.TagStore;
 import com.vmturbo.cost.component.db.Cost;
 import com.vmturbo.cost.component.db.TestCostDbEndpointConfig;
+import com.vmturbo.cost.component.scope.SqlCloudCostScopeIdReplacementLog;
 import com.vmturbo.cost.component.scope.SqlCloudScopeIdentityStore;
 import com.vmturbo.platform.sdk.common.CommonCost.CurrencyAmount;
 import com.vmturbo.platform.sdk.common.CommonCost.PriceModel;
@@ -172,8 +178,14 @@ public class BilledCostRpcServiceTest extends MultiDbTestBase {
 
         final IPartitioningManager partitioningManager = mock(IPartitioningManager.class);
 
+        final SqlCloudCostScopeIdReplacementLog sqlCloudCostScopeIdReplacementLog
+            = mock(SqlCloudCostScopeIdReplacementLog.class);
+
+        when(sqlCloudCostScopeIdReplacementLog.getReplacedScopeId(anyLong(), any(Instant.class)))
+            .thenAnswer(i -> i.getArguments()[0]);
+
         sqlCloudCostStore = new SqlCloudCostStore(partitioningManager, tagGroupIdentityService,
-                cloudScopeIdentityProvider, dataQueueFactory, timeFrameCalculator,
+                cloudScopeIdentityProvider, sqlCloudCostScopeIdReplacementLog, dataQueueFactory, timeFrameCalculator,
                 super.getDslContext(), billedCostPersistenceConfig);
 
         billedCostRpcService = new BilledCostRpcService(sqlCloudCostStore);
@@ -407,13 +419,132 @@ public class BilledCostRpcServiceTest extends MultiDbTestBase {
         assertEquals(0, responseHandler.errors.size());
     }
 
+
+    /**
+     * Upload some billed cost data, but try to send the billed cost buckets before the metadata.
+     *
+     * @throws Exception on error
+     */
+    @Test
+    public void testUploadBucketsBeforeMetadata() throws Exception {
+
+        final TestUploadResponseHandler responseHandler = new TestUploadResponseHandler();
+        final StreamObserver<UploadBilledCloudCostRequest> requestSender =
+                billedCostRpcService.uploadBilledCloudCost(responseHandler);
+
+        final long billingFamilyId = pseudoIdentityProvider.get();
+        final long serviceProviderId = pseudoIdentityProvider.get();
+
+        // Send billed cost buckets
+        final List<BilledCostBucket> billedCostBuckets = ImmutableList.<BilledCostBucket>builder()
+                .add(BilledCostBucket.newBuilder()
+                        .setSampleTsUtc(1665678645575L)
+                        .addCostItems(VIRTUAL_MACHINE_USAGE_1.toBuilder().clearCostTagGroupId())
+                        .addCostItems(VIRTUAL_MACHINE_USAGE_2.toBuilder().clearCostTagGroupId())
+                        .build())
+                .add(BilledCostBucket.newBuilder()
+                        .setSampleTsUtc(1665655200000L)
+                        .addCostItems(VIRTUAL_MACHINE_USAGE_1.toBuilder().clearCostTagGroupId())
+                        .addCostItems(VIRTUAL_MACHINE_USAGE_2.toBuilder().clearCostTagGroupId())
+                        .build())
+                .build();
+
+        requestSender.onNext(UploadBilledCloudCostRequest.newBuilder()
+                .setBilledCost(
+                        BilledCostSegment.newBuilder().addAllCostBuckets(billedCostBuckets).build())
+                .build());
+
+        // Send metadata
+        requestSender.onNext(UploadBilledCloudCostRequest.newBuilder()
+                .setBilledCostMetadata(MetadataSegment.newBuilder()
+                        .setBillingFamilyId(billingFamilyId)
+                        .setServiceProviderId(serviceProviderId)
+                        .build())
+                .build());
+
+        // Try to complete the upload
+        requestSender.onCompleted();
+
+        responseHandler.awaitCompletion();
+
+        // assertions
+
+        assertThat(responseHandler.errors, hasSize(1));
+        assertThat(responseHandler.errors.get(0), instanceOf(StatusException.class));
+    }
+
+    /**
+     * Upload some billed cost data, but don't include a cost tag groups segment.
+     *
+     * @throws Exception on error
+     */
+    @Test
+    public void testUploadNoCostTagsSegment() throws Exception {
+
+        final TestUploadResponseHandler responseHandler = new TestUploadResponseHandler();
+        final StreamObserver<UploadBilledCloudCostRequest> requestSender =
+                billedCostRpcService.uploadBilledCloudCost(responseHandler);
+
+        final long billingFamilyId = pseudoIdentityProvider.get();
+        final long serviceProviderId = pseudoIdentityProvider.get();
+
+        // Send metadata
+        requestSender.onNext(UploadBilledCloudCostRequest.newBuilder()
+                .setBilledCostMetadata(MetadataSegment.newBuilder()
+                        .setBillingFamilyId(billingFamilyId)
+                        .setServiceProviderId(serviceProviderId)
+                        .build())
+                .build());
+
+        // Don't send a cost tags segment
+
+        // Try to send billed cost buckets that don't reference any tags
+        final List<BilledCostBucket> billedCostBuckets = ImmutableList.<BilledCostBucket>builder()
+                .add(BilledCostBucket.newBuilder()
+                        .setSampleTsUtc(1665678645575L)
+                        .addCostItems(VIRTUAL_MACHINE_USAGE_1.toBuilder().clearCostTagGroupId())
+                        .addCostItems(VIRTUAL_MACHINE_USAGE_2.toBuilder().clearCostTagGroupId())
+                        .build())
+                .add(BilledCostBucket.newBuilder()
+                        .setSampleTsUtc(1665655200000L)
+                        .addCostItems(VIRTUAL_MACHINE_USAGE_1.toBuilder().clearCostTagGroupId())
+                        .addCostItems(VIRTUAL_MACHINE_USAGE_2.toBuilder().clearCostTagGroupId())
+                        .build())
+                .build();
+
+        requestSender.onNext(UploadBilledCloudCostRequest.newBuilder()
+                .setBilledCost(
+                        BilledCostSegment.newBuilder().addAllCostBuckets(billedCostBuckets).build())
+                .build());
+
+        // Try to complete the upload
+        requestSender.onCompleted();
+
+        responseHandler.awaitCompletion();
+
+        // assertions
+
+        assertTrue(responseHandler.isCompleted());
+        assertThat("the upload request was done incorrectly and should be rejected", responseHandler.errors,
+                hasSize(1));
+        assertThat(responseHandler.errors.get(0), instanceOf(StatusException.class));
+
+        final List<BilledCostData> queryAllResults = sqlCloudCostStore.getCostData(
+                BilledCostQuery.newBuilder()
+                        .setFilter(BilledCostFilter.getDefaultInstance())
+                        .setGranularity(Granularity.HOURLY)
+                        .build());
+
+        assertEquals("no data made it into the database", 0, queryAllResults.size());
+    }
+
     /**
      * Upload some billed cost data, but don't include any cost tag groups.
      *
      * @throws Exception on error
      */
     @Test
-    public void testUploadNoCostTagGroups() throws Exception {
+    public void testUploadEmptyCostTagGroups() throws Exception {
 
         final TestUploadResponseHandler responseHandler = new TestUploadResponseHandler();
         final StreamObserver<UploadBilledCloudCostRequest> requestSender =
@@ -719,7 +850,7 @@ public class BilledCostRpcServiceTest extends MultiDbTestBase {
                         BilledCostSegment.newBuilder().addAllCostBuckets(billedCostBuckets).build())
                 .build());
 
-        // Complete the upload
+        // Try to complete the errored-out upload, make sure it doesn't break anything
         requestSender.onCompleted();
 
         responseHandler.awaitCompletion();
@@ -807,6 +938,7 @@ public class BilledCostRpcServiceTest extends MultiDbTestBase {
         @Override
         public void onError(final Throwable error) {
             errors.add(error);
+            completionLatch.countDown();
         }
 
         @Override
@@ -815,10 +947,10 @@ public class BilledCostRpcServiceTest extends MultiDbTestBase {
         }
 
         public void awaitCompletion() throws InterruptedException {
-            completionLatch.await();
+            awaitCompletion(60);
         }
 
-        public void awaitCompletion(final int seconds) throws InterruptedException {
+        private void awaitCompletion(final int seconds) throws InterruptedException {
             if (!completionLatch.await(seconds, TimeUnit.SECONDS)) {
                 throw new AssertionError("Latch failed to close in time");
             }

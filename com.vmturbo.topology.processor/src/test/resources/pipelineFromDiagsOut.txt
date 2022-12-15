@@ -1,0 +1,146 @@
+======== Pipeline Summary ========
+Context ID: 11
+Topology ID: 12
+Topology Type: REALTIME
+
+Status: COMPLETED
+Current Stage: None
+
+Pipeline Started: @IGNORE
+Pipeline Completed: @IGNORE
+Pipeline Duration (s): @IGNORE
+
+======== Stage Breakdown ========
+DCMappingStage --- SUCCEEDED in @IGNORE
+    No Fabric targets. Skipping DCMappingStage.
+-------
+StitchingStage --- SUCCEEDED in @IGNORE
+    Entity count: 355 --> 236
+    48 miscellaneous changes
+    REMOVED entities: (119)
+    	4 STORAGE
+    	115 VIRTUAL_VOLUME
+    PIPELINE_CONTEXT_MEMBERS:
+        PROVIDED=(stitchingJournalContainer)
+-------
+FlowGenerationStage --- SUCCEEDED in @IGNORE
+-------
+UploadCloudCostDataStage --- SUCCEEDED in @IGNORE
+-------
+UploadBilledCloudCostDataStage --- SUCCEEDED in @IGNORE
+-------
+UploadAliasedOidsStage --- SUCCEEDED in @IGNORE
+-------
+UploadPlanDestinationsStage --- SUCCEEDED in @IGNORE
+-------
+ScanDiscoveredSettingPoliciesStage --- SUCCEEDED in @IGNORE
+-------
+UploadActionConstraintsStage --- SUCCEEDED in @IGNORE
+-------
+StitchingGroupAnalyzerStage --- SUCCEEDED in @IGNORE
+    Analyzed 0 groups that need replace members.
+-------
+CacheWritingConstructTopologyFromStitchingContextStage --- SUCCEEDED in @IGNORE
+    Constructed topology of size 236 from context of size 236
+-------
+InitializeTopologyEntitiesStage --- SUCCEEDED in @IGNORE
+-------
+MergeEntityCustomTagsStage --- SUCCEEDED in @IGNORE
+-------
+UploadGroupsStage --- SUCCEEDED in @IGNORE
+-------
+UploadWorkflowsStage --- SUCCEEDED in @IGNORE
+-------
+UploadTemplatesStage --- SUCCEEDED in @IGNORE
+-------
+ReservationStage --- SUCCEEDED in @IGNORE
+-------
+GraphCreationStage --- SUCCEEDED in @IGNORE
+-------
+ApplyClusterCommodityStage --- SUCCEEDED in @IGNORE
+-------
+ChangeAppCommodityKeyOnVMAndAppStage --- SUCCEEDED in @IGNORE
+    Commodity key change counts:
+-------
+EnvironmentTypeStage --- SUCCEEDED in @IGNORE
+-------
+VolumesDaysUnAttachedCalcStage --- SUCCEEDED in @IGNORE
+    Updated volume Unattached Days
+-------
+UpdateAppServiceDaysEmptyStage --- SUCCEEDED in @IGNORE
+    No empty app services found for days empty update
+-------
+SettingsAndPoliciesSegment --- SUCCEEDED in @IGNORE
+    Status: COMPLETED
+
+    -------
+    PolicyStage --- SUCCEEDED in @IGNORE
+        No policies to apply.
+        PIPELINE_CONTEXT_MEMBERS:
+            REQUIRED=(groupResolver[cacheSize=0], placementPolicies[size=0])
+            DROPPED=(placementPolicies)
+    -------
+    GenerateConstraintMapStage --- FAILED after @IGNORE
+        Runtime Error: UNIMPLEMENTED: Method group.GroupService/GetGroups is unimplemented
+        PIPELINE_CONTEXT_MEMBERS:
+            REQUIRED=(groupResolver[cacheSize=0])
+    -------
+    SettingsResolutionStage --- SUCCEEDED in @IGNORE
+        PIPELINE_CONTEXT_MEMBERS:
+            REQUIRED=(groupResolver[cacheSize=0], resolvedGroups[size=0], settingPolicyEditors[size=0])
+            DROPPED=(groupResolver, resolvedGroups, settingPolicyEditors)
+    -------
+    SettingsUploadStage --- SUCCEEDED in @IGNORE
+    -------
+    SettingsApplicationStage --- SUCCEEDED in @IGNORE
+-------
+MatrixUpdateStage --- SUCCEEDED in @IGNORE
+-------
+PostStitchingStage --- SUCCEEDED in @IGNORE
+    Entity count: 0
+    0 miscellaneous changes
+    PIPELINE_CONTEXT_MEMBERS:
+        REQUIRED=(postStitchingOperationsToSkip[size=0], stitchingJournalContainer)
+        DROPPED=(postStitchingOperationsToSkip, stitchingJournalContainer)
+-------
+ControllableStage --- SUCCEEDED in @IGNORE
+    Marked 0 entities as non-controllable.
+    Marked 0 entities as non-suspendable.
+    Marked 0 entities as not scalable.
+    Marked 0 entities as not resizable.
+    Marked 0 entities as not reconfigurable.
+-------
+EntityValidationStage --- SUCCEEDED in @IGNORE
+-------
+SupplyChainValidationStage --- SUCCEEDED in @IGNORE
+    Skipping validation phase
+-------
+HistoryAggregationStage --- SUCCEEDED in @IGNORE
+-------
+ExtractTopologyGraphStage --- SUCCEEDED in @IGNORE
+-------
+HistoricalUtilizationStage --- SUCCEEDED in @IGNORE
+-------
+RequestAndLimitCommodityThresholdsStage --- SUCCEEDED in @IGNORE
+-------
+EphemeralEntityHistoryStage --- SUCCEEDED in @IGNORE
+-------
+ProbeActionCapabilitiesApplicatorStage --- SUCCEEDED in @IGNORE
+    Total movables set to true are: 0
+    Total movables set to false are: 0
+    Total resizeables set to true are: 0
+    Total resizeables set to false are: 0
+    Total scalables set to true are: 0
+    Total scalables set to false are: 0
+    Total cloneable set to true are: 0
+    Total cloneable set to false are: 0
+    Total suspendable set to true are: 0
+    Total suspendable set to false are: 0
+-------
+UploadAtomicActionSpecsStage --- SUCCEEDED in @IGNORE
+-------
+TopSortStage --- SUCCEEDED in @IGNORE
+-------
+BroadcastStage --- WARNING (completed in @IGNORE)
+    No entities broadcast.
+=================================

@@ -29,6 +29,7 @@ import com.vmturbo.cloud.common.scope.IdentityOperationException;
 import com.vmturbo.cloud.common.scope.IdentityUninitializedException;
 import com.vmturbo.common.protobuf.cost.BilledCost.BilledCostData;
 import com.vmturbo.cost.component.billedcosts.TagGroupIdentityService;
+import com.vmturbo.cost.component.scope.ScopeIdReplacementLog;
 import com.vmturbo.platform.sdk.common.CostBilling.CloudBillingData.CloudBillingBucket.Granularity;
 import com.vmturbo.platform.sdk.common.CostBilling.CostTagGroup;
 import com.vmturbo.sql.utils.DbException;
@@ -52,16 +53,20 @@ class BilledCostWriter {
 
     private final CloudScopeIdentityProvider scopeIdentityProvider;
 
+    private final ScopeIdReplacementLog scopeIdReplacementLog;
+
     private final DSLContext dsl;
 
     protected BilledCostWriter(@Nonnull IPartitioningManager partitioningManager,
                                @Nonnull TagGroupIdentityService tagGroupIdentityService,
                                @Nonnull CloudScopeIdentityProvider scopeIdentityProvider,
+                               @Nonnull ScopeIdReplacementLog scopeIdReplacementLog,
                                @Nonnull DSLContext dsl) {
 
         this.partitioningManager = Objects.requireNonNull(partitioningManager);
         this.tagGroupIdentityService = Objects.requireNonNull(tagGroupIdentityService);
         this.scopeIdentityProvider = Objects.requireNonNull(scopeIdentityProvider);
+        this.scopeIdReplacementLog = Objects.requireNonNull(scopeIdReplacementLog);
         this.dsl = Objects.requireNonNull(dsl);
     }
 
@@ -186,6 +191,8 @@ class BilledCostWriter {
                     .filter(expandedItem -> scopeIdentityMap.containsKey(expandedItem.scope()))
                     .map(expandedItem -> {
                         final CloudScopeIdentity scopeIdentity = scopeIdentityMap.get(expandedItem.scope());
+                        final long scopeId = scopeIdReplacementLog.getReplacedScopeId(
+                            scopeIdentity.scopeId(), expandedItem.sampleTs());
                         final long costTagGroupId = expandedItem.hasCostTagGroup()
                                 ? tagGroupIdMap.get(expandedItem.costTagGroup())
                                 // If a cost item does not have a tag group, set the tag group ID to zero (indicative of null).
@@ -199,7 +206,7 @@ class BilledCostWriter {
                         } else {
                             final TableRecord<?> tableRecord =
                                     tableAccessor.createTableRecord(expandedItem.costItem(), expandedItem.sampleTs(), expandedItem.billingFamilyId(),
-                                            scopeIdentity.scopeId(), costTagGroupId);
+                                        scopeId, costTagGroupId);
                             return context.insertInto(tableAccessor.table())
                                     .set(tableRecord)
                                     .onDuplicateKeyUpdate()

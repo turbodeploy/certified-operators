@@ -74,6 +74,7 @@ import com.vmturbo.topology.processor.conversions.typespecific.ComputeTierInfoMa
 import com.vmturbo.topology.processor.conversions.typespecific.ContainerInfoMapper;
 import com.vmturbo.topology.processor.conversions.typespecific.ContainerPlatformClusterInfoMapper;
 import com.vmturbo.topology.processor.conversions.typespecific.ContainerPodInfoMapper;
+import com.vmturbo.topology.processor.conversions.typespecific.ContainerSpecInfoMapper;
 import com.vmturbo.topology.processor.conversions.typespecific.DatabaseInfoMapper;
 import com.vmturbo.topology.processor.conversions.typespecific.DatabaseServerTierInfoMapper;
 import com.vmturbo.topology.processor.conversions.typespecific.DatabaseTierInfoMapper;
@@ -145,6 +146,7 @@ public class SdkToTopologyEntityConverter {
                     .put(EntityType.CONTAINER_PLATFORM_CLUSTER, new ContainerPlatformClusterInfoMapper())
                     .put(EntityType.CONTAINER, new ContainerInfoMapper())
                     .put(EntityType.CONTAINER_POD, new ContainerPodInfoMapper())
+                    .put(EntityType.CONTAINER_SPEC, new ContainerSpecInfoMapper())
                     .put(EntityType.SERVICE, new ServiceInfoMapper())
                     .build();
 

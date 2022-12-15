@@ -107,6 +107,8 @@ public class DiscoveredGroupUploader {
 
     private final DiscoveredGroupInterpreter discoveredGroupInterpreter;
 
+    private final DiscoveredSettingPolicyInterpreter settingPolicyInterpreter;
+
     private final DiscoveredClusterConstraintCache discoveredClusterConstraintCache;
 
     private final TargetStore targetStore;
@@ -124,61 +126,17 @@ public class DiscoveredGroupUploader {
 
     private Map<Long, String> hypervisorPM2datacenterNames;
 
-    /**
-     * A static map that maps {@link SettingType} to its corresponding setting name.
-     */
-    private static final Map<SettingType, String> settingType2SettingName =
-            ImmutableMap.<SettingType, String>builder()
-                    .put(VCPU_CORES_MIN_THRESHOLD,
-                         EntitySettingSpecs.ResizeVcpuMinThreshold.getSettingName())
-                    .put(VCPU_CORES_MAX_THRESHOLD,
-                         EntitySettingSpecs.ResizeVcpuMaxThreshold.getSettingName())
-                    .put(RESPONSE_TIME_SLO,
-                         EntitySettingSpecs.ResponseTimeSLO.getSettingName())
-                    .put(TRANSACTION_SLO,
-                         EntitySettingSpecs.TransactionSLO.getSettingName())
-                    .put(MIN_REPLICAS,
-                         EntitySettingSpecs.MinReplicas.getSettingName())
-                    .put(MAX_REPLICAS,
-                         EntitySettingSpecs.MaxReplicas.getSettingName())
-                    .put(MOVE_AUTOMATION_MODE,
-                         ConfigurableActionSettings.Move.getSettingName())
-                    .put(RESIZE_AUTOMATION_MODE,
-                         ConfigurableActionSettings.Resize.getSettingName())
-                    .put(HORIZONTAL_SCALE_UP_AUTOMATION_MODE,
-                         ConfigurableActionSettings.HorizontalScaleUp.getSettingName())
-                    .put(HORIZONTAL_SCALE_DOWN_AUTOMATION_MODE,
-                         ConfigurableActionSettings.HorizontalScaleDown.getSettingName())
-                    .build();
-
-    /**
-     * A static map that maps SLO {@link SettingType} to its mandatory related setting.
-     */
-    private static final Map<SettingType, Setting> SLOValue2SLOEnabled =
-            ImmutableMap.of(RESPONSE_TIME_SLO,
-                            Setting.newBuilder()
-                                    .setSettingSpecName(
-                                            EntitySettingSpecs.ResponseTimeSLOEnabled.getSettingName())
-                                    .setBooleanSettingValue(
-                                            BooleanSettingValue.newBuilder().setValue(true).build())
-                                    .build(),
-                            TRANSACTION_SLO,
-                            Setting.newBuilder()
-                                    .setSettingSpecName(
-                                            EntitySettingSpecs.TransactionSLOEnabled.getSettingName())
-                                    .setBooleanSettingValue(
-                                            BooleanSettingValue.newBuilder().setValue(true).build())
-                                    .build());
-
     @VisibleForTesting
     DiscoveredGroupUploader(
             @Nonnull final GroupServiceStub groupServiceStub,
             @Nonnull final DiscoveredGroupInterpreter discoveredGroupInterpreter,
+            @Nonnull final DiscoveredSettingPolicyInterpreter settingPolicyInterpreter,
             @Nonnull final DiscoveredClusterConstraintCache discoveredClusterConstraintCache,
             @Nonnull final TargetStore targetStore,
             @Nonnull final StitchingGroupFixer stitchingGroupFixer) {
         this.groupServiceStub = Objects.requireNonNull(groupServiceStub);
         this.discoveredGroupInterpreter = Objects.requireNonNull(discoveredGroupInterpreter);
+        this.settingPolicyInterpreter = Objects.requireNonNull(settingPolicyInterpreter);
         this.discoveredClusterConstraintCache =  Objects.requireNonNull(discoveredClusterConstraintCache);
         this.targetStore = Objects.requireNonNull(targetStore);
         this.stitchingGroupFixer = Objects.requireNonNull(stitchingGroupFixer);
@@ -199,7 +157,9 @@ public class DiscoveredGroupUploader {
             @Nonnull final DiscoveredClusterConstraintCache discoveredClusterConstraintCache,
             @Nonnull final TargetStore targetStore,
             @Nonnull final StitchingGroupFixer stitchingGroupFixer) {
-        this(groupServiceStub, new DiscoveredGroupInterpreter(entityStore),
+        this(groupServiceStub,
+                new DiscoveredGroupInterpreter(entityStore),
+                new DiscoveredSettingPolicyInterpreter(targetStore, entityStore),
                 discoveredClusterConstraintCache, targetStore, stitchingGroupFixer);
     }
 
@@ -230,7 +190,7 @@ public class DiscoveredGroupUploader {
         final DiscoveredPolicyInfoParser parser = new DiscoveredPolicyInfoParser(groups, targetId);
         final List<DiscoveredPolicyInfo> discoveredPolicyInfos = parser.parsePoliciesOfGroups();
         final List<DiscoveredSettingPolicyInfo> discoveredSettingPolicyInfos =
-                convertDiscoveredSettingPolicies(targetId, groups);
+                settingPolicyInterpreter.convertDiscoveredSettingPolicies(targetId, groups);
 
         synchronized (dataByTarget) {
             dataByTarget.computeIfAbsent(targetId, k -> new TargetDiscoveredData())
@@ -238,225 +198,6 @@ public class DiscoveredGroupUploader {
                   discoveredSettingPolicyInfos);
             discoveredClusterConstraintCache.storeDiscoveredClusterConstraint(targetId, groups);
         }
-    }
-
-    @Nonnull
-    private List<DiscoveredSettingPolicyInfo> convertDiscoveredSettingPolicies(final long targetId,
-                                                  @Nonnull final List<CommonDTO.GroupDTO> groups) {
-        final List<DiscoveredSettingPolicyInfo> discoveredSettingPolicyInfos = new ArrayList<>();
-        discoveredSettingPolicyInfos
-                .addAll(convertTemplateExclusionGroupsToPolicies(targetId, groups));
-        discoveredSettingPolicyInfos
-                .addAll(convertConsistentScalingGroupsToPolicies(targetId, groups));
-        discoveredSettingPolicyInfos
-                .addAll(convertSettingPolicies(targetId, groups));
-        return discoveredSettingPolicyInfos;
-    }
-
-    /**
-     * Create policies to enable consistent scaling on groups that have it enabled via mediation.
-     *
-     * @param targetId The id of the target whose groups were discovered
-     * @param groups GroupDTOs to process
-     * @return list of DiscoveredSettingPolicyInfo created for consistent scaling
-     */
-    private List<DiscoveredSettingPolicyInfo> convertConsistentScalingGroupsToPolicies(
-                    final long targetId,
-                    final List<GroupDTO> groups) {
-        List<DiscoveredSettingPolicyInfo> discoveredPolicyInfos = new ArrayList<>();
-        for (GroupDTO group : groups) {
-            if (!group.getIsConsistentResizing()) {
-                continue;
-            }
-
-            Setting.Builder setting = Setting.newBuilder();
-            setting.setSettingSpecName(EntitySettingSpecs.EnableConsistentResizing.getSettingName());
-            setting.setBooleanSettingValue(BooleanSettingValue.newBuilder().setValue(true));
-
-            discoveredPolicyInfos.add(createPolicy(group, targetId,
-                Collections.singletonList(setting.build()), "Consistent Scaling Policy", "CSP"));
-        }
-        return discoveredPolicyInfos;
-    }
-
-    /**
-     * Convert template exclusion GroupDTOs to DiscoveredSettingPolicyInfos.
-     *
-     * @param targetId The id of the target whose groups were discovered
-     * @param groups GroupDTOs to process
-     * @return the list of DiscoveredSettingPolicyInfos
-     */
-    @Nonnull
-    private List<DiscoveredSettingPolicyInfo> convertTemplateExclusionGroupsToPolicies(
-            long targetId, @Nonnull List<CommonDTO.GroupDTO> groups) {
-        List<DiscoveredSettingPolicyInfo> result = new ArrayList<>();
-        String targetName = getTargetDisplayName(targetId);
-
-        for (GroupDTO group : groups) {
-            if (group.getConstraintInfo()
-                    .getConstraintType() != ConstraintType.TEMPLATE_EXCLUSION) {
-                continue;
-            }
-
-            SortedSetOfOidSettingValue.Builder oids = SortedSetOfOidSettingValue.newBuilder();
-            oids.addAllOids(discoveredGroupInterpreter.convertTemplateNamesToOids(group, targetId,
-                    targetName));
-
-            Setting.Builder setting = Setting.newBuilder();
-            setting.setSettingSpecName(EntitySettingSpecs.ExcludedTemplates.getSettingName());
-            setting.setSortedSetOfOidSettingValue(oids);
-
-            result.add(createPolicy(group, targetId, Collections.singletonList(setting.build()),
-                    "Cloud Compute Tier Exclusion Policy", "EXP"));
-        }
-
-        return result;
-    }
-
-    /**
-     * Convert setting policies GroupDTOs to DiscoveredSettingPolicyInfos.
-     *
-     * @param targetId The id of the target whose groups were discovered
-     * @param groups GroupDTOs to process
-     * @return the list of DiscoveredSettingPolicyInfos
-     */
-    @Nonnull
-    private List<DiscoveredSettingPolicyInfo> convertSettingPolicies(
-            long targetId, @Nonnull List<CommonDTO.GroupDTO> groups) {
-        List<DiscoveredSettingPolicyInfo> result = new ArrayList<>();
-        String targetName = getTargetDisplayName(targetId);
-
-        for (GroupDTO group : groups) {
-            if (!group.hasSettingPolicy()) {
-                continue;
-            }
-            List<Setting> settings = new ArrayList<>(group.getSettingPolicy().getSettingsCount());
-            group.getSettingPolicy().getSettingsList().forEach(discoveredSetting -> {
-                final SettingType settingType = discoveredSetting.getType();
-                if (!settingType2SettingName.containsKey(settingType)) {
-                    logger.error("The setting \"{}\" discovered from target \"{}\" is unknown.",
-                                 settingType, targetName);
-                    return;
-                }
-                final String settingName = settingType2SettingName.get(settingType);
-                final Setting.Builder setting = Setting.newBuilder().setSettingSpecName(settingName);
-                switch (discoveredSetting.getSettingValueTypeCase()) {
-                    case NUMERIC_SETTING_VALUE_TYPE:
-                        setting.setNumericSettingValue(NumericSettingValue.newBuilder()
-                            .setValue(discoveredSetting.getNumericSettingValueType().getValue()));
-                        break;
-                    case STRING_SETTING_VALUE_TYPE:
-                        // Currently, all string setting values from discovered policy settings
-                        // map to enum setting values
-                        // TODO: Distinguish between String and Enum setting value type if needed
-                        //   in the future
-                        setting.setEnumSettingValue(SettingProto.EnumSettingValue.newBuilder()
-                            .setValue(discoveredSetting.getStringSettingValueType().getValue()));
-                        break;
-                    default:
-                        logger.error("The setting value \"{}\" discovered from target \"{}\" is unknown.",
-                                     discoveredSetting.getSettingValueTypeCase(), targetName);
-                        return;
-                }
-                settings.add(setting.build());
-                // If SLO value exists, enable SLO settings automatically
-                if (SLOValue2SLOEnabled.containsKey(settingType)) {
-                    settings.add(SLOValue2SLOEnabled.get(settingType));
-                }
-            });
-
-            if (settings.size() > 0) {
-                result.add(createPolicy(
-                        group,
-                        targetId,
-                        settings,
-                        "Setting policy",
-                        "SET",
-                        group.getSettingPolicy().getDisplayName()
-                ));
-            } else {
-                logger.warn("No setting policy were created for \"{}\" discovered from \"{}\"",
-                        group.getDisplayName(), targetName);
-            }
-        }
-
-        return result;
-    }
-
-    private DiscoveredSettingPolicyInfo createPolicy(
-            GroupDTO group,
-            long targetId,
-            List<Setting> settings,
-            String displayNameId,
-            String nameId) {
-        return createPolicy(
-            group,
-            targetId,
-            settings,
-            displayNameId,
-            nameId,
-            null
-        );
-    }
-
-    private DiscoveredSettingPolicyInfo createPolicy(
-            GroupDTO group,
-            long targetId,
-            List<Setting> settings,
-            String displayNameId,
-            String nameId,
-            @Nullable final String displayName) {
-        DiscoveredSettingPolicyInfo.Builder policy = DiscoveredSettingPolicyInfo.newBuilder();
-        policy.setEntityType(group.getEntityType().getNumber());
-        policy.addDiscoveredGroupNames(GroupProtoUtil.createIdentifyingKey(group));
-        if (StringUtils.isEmpty(displayName)) {
-            String name = String.format("%s - %s (target %d)", group.getDisplayName(), displayNameId, targetId);
-            policy.setDisplayName(name);
-        } else {
-            policy.setDisplayName(String.format("%s (target %d)", displayName, targetId));
-        }
-        policy.setName(createPolicyName(group, targetId, nameId));
-        policy.addAllSettings(settings);
-        return policy.build();
-    }
-
-    /**
-     * Create a policy name based on group name and discovering target oid. It will make the name
-     * stays under 255 character.
-     *
-     * @param group the group which has the policy.
-     * @param targetId the id for target discovering the group.
-     * @param prefix the prefix distinguishing different type of policies.
-     * @return the name created for policy.
-     */
-    private String createPolicyName(GroupDTO group, long targetId, String prefix) {
-        // It is expected that the group name is unique in the scope of that target.
-        // Therefore, the concatenation of group name and target id should be unqiue.
-        final String name = String.join(":", prefix, extractSettingPolicyGroupName(group),
-            String.valueOf(targetId));
-        // The name of policy should not be longer than character limit. Fix if that is the case
-        return SDKUtil.fixUuid(name, 255, 215);
-    }
-
-    @Nonnull
-    private String extractSettingPolicyGroupName(@Nonnull GroupDTO group) {
-        switch (group.getInfoCase()) {
-            case GROUP_NAME:
-                return group.getGroupName();
-            case CONSTRAINT_INFO:
-                return group.getConstraintInfo().getConstraintId();
-            case SETTING_POLICY:
-                return group.getSettingPolicy().getName();
-            default:
-                throw new IllegalArgumentException("Unknown group info " + group.getInfoCase()
-                        + " for group " + group.getDisplayName());
-        }
-    }
-
-    @Nonnull
-    private String getTargetDisplayName(long targetId) {
-        Optional<String> name = targetStore.getTargetDisplayName(targetId);
-        return name.orElseGet(() -> String.valueOf(targetId));
     }
 
     /**

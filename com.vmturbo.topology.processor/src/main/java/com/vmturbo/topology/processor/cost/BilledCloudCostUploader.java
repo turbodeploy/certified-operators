@@ -34,6 +34,7 @@ import com.google.protobuf.AbstractMessage;
 
 import io.grpc.stub.StreamObserver;
 
+import org.apache.commons.lang3.mutable.MutableInt;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jetbrains.annotations.NotNull;
@@ -76,6 +77,8 @@ import com.vmturbo.topology.processor.stitching.StitchingContext;
 public class BilledCloudCostUploader implements DiagsRestorable<Void> {
 
     private static final Logger logger = LogManager.getLogger(BilledCloudCostUploader.class);
+
+    private static final int UNRESOLVED_OID_LOG_LIMIT = 20;
 
     /**
      * The smallest possible upload request is about 4 bytes, but we can't realistically break
@@ -235,7 +238,7 @@ public class BilledCloudCostUploader implements DiagsRestorable<Void> {
 
         final CloudEntitiesMap cloudEntitiesMap =
                 createCloudEntitiesMap(stitchingContext, activeTargetProbeTypes);
-        final Map<String, Long> entityBillingIdToOidMap =
+        final Map<String, Long> entityBillingAliasIdToOidMap =
                 createEntityBillingIdToOidMap(stitchingContext);
 
         final ListMultimap<Long, CloudBillingData> targetFailedUploads = ArrayListMultimap.create();
@@ -243,12 +246,12 @@ public class BilledCloudCostUploader implements DiagsRestorable<Void> {
         billingDataToUpload.forEach((targetId, cloudBillingData) -> {
             final Stopwatch timer = Stopwatch.createStarted();
 
-            final Map<String, Long> entityLocalIdToOidMap =
+            final Map<String, Long> targetLocalEntityIdToOidMap =
                     stitchingContext.getTargetEntityLocalIdToOid(targetId);
 
             final BilledCostData billedCostData =
-                    resolveOidsAndConvertToBilledCostData(targetId, cloudBillingData,
-                            cloudEntitiesMap, entityBillingIdToOidMap, entityLocalIdToOidMap);
+                    resolveOidsAndConvertToBilledCostData(targetId, cloudBillingData, cloudEntitiesMap,
+                            entityBillingAliasIdToOidMap, targetLocalEntityIdToOidMap);
 
             final ResponseHandler<UploadBilledCloudCostResponse> responseHandler =
                     new ResponseHandler<>();
@@ -351,11 +354,17 @@ public class BilledCloudCostUploader implements DiagsRestorable<Void> {
     /**
      * Convert {@link BilledCostBucket}s to Protobuf, split up buckets larger than the maximum size,
      * and merge the rest into chunks of up to the maximum size.
+     *
+     * <p>Always returns at least 1 segment which will be empty if no billed cost buckets were provided.
      */
     @Nonnull
     private List<BilledCostSegment> chunkBilledCostBuckets(
-            @Nonnull final Iterable<BilledCostBucket> billedCostBuckets)
+            @Nonnull final List<BilledCostBucket> billedCostBuckets)
             throws MessageChunker.OversizedElementException {
+
+        if (billedCostBuckets.isEmpty()) {
+            return ImmutableList.of(BilledCostSegment.getDefaultInstance());
+        }
 
         final ImmutableList.Builder<BilledCostBucket> sizeCappedBuckets = ImmutableList.builder();
 
@@ -417,11 +426,17 @@ public class BilledCloudCostUploader implements DiagsRestorable<Void> {
 
     /**
      * Convert {@link CostTagGroup}s to Protobuf and merge them into chunks of a maximum size.
+     *
+     * <p>Always returns at least 1 segment which will be empty if no cost tag groups were provided.
      */
     @Nonnull
     private List<CostTagsSegment> chunkCostTagGroups(
             @Nonnull final Map<Long, CostTagGroup> costTagGroups)
             throws MessageChunker.OversizedElementException {
+
+        if (costTagGroups.isEmpty()) {
+            return ImmutableList.of(CostTagsSegment.getDefaultInstance());
+        }
 
         final List<CostTagsSegment> costTagsSegments = costTagGroups.entrySet()
                 .stream()
@@ -446,9 +461,9 @@ public class BilledCloudCostUploader implements DiagsRestorable<Void> {
      * @param targetId ID of the mediation target
      * @param cloudBillingData billing data to convert
      * @param cloudEntitiesMap utility for resolving OIDs
-     * @param entityBillingIdToOidMap extra tool for getting entity OIDs from their billing
+     * @param entityBillingAliasIdToOidMap extra tool for getting entity OIDs from their billing/alias
      *         IDs
-     * @param entityLocalIdToOidMap extra tool for resolving OIDs based on {@link
+     * @param targetLocalEntityIdToOidMap extra tool for resolving OIDs based on {@link
      *         com.vmturbo.platform.common.dto.CommonDTO.EntityIdentifyingPropertyValues}
      * @return converted and populated billed cost data
      */
@@ -456,25 +471,21 @@ public class BilledCloudCostUploader implements DiagsRestorable<Void> {
     private BilledCostData resolveOidsAndConvertToBilledCostData(final long targetId,
             @Nonnull final CloudBillingData cloudBillingData,
             @Nonnull final CloudEntitiesMap cloudEntitiesMap,
-            @Nonnull final Map<String, Long> entityBillingIdToOidMap,
-            @Nonnull final Map<String, Long> entityLocalIdToOidMap) {
+            @Nonnull final Map<String, Long> entityBillingAliasIdToOidMap,
+            @Nonnull final Map<String, Long> targetLocalEntityIdToOidMap) {
+
+        final MutableInt logMessageCounter = new MutableInt();
 
         final BilledCostData.Builder billedCostData = BilledCostData.newBuilder();
 
-        final Function<String, Long> resolveCloudOid = cloudEntitiesMap::get;
-        final Function<String, Long> resolveBillingEntityOid = entityBillingIdToOidMap::get;
-        final Function<String, Long> resolveTargetLocalOid = entityLocalIdToOidMap::get;
+        final Function<String, Long> resolveTopologyOid = cloudEntitiesMap::get;
+        final Function<String, Long> resolveBillingAliasOid = entityBillingAliasIdToOidMap::get;
+        final Function<String, Long> resolveTargetLocalOid = targetLocalEntityIdToOidMap::get;
         final Function<String, Long> resolveFallbackAccountOid =
                 accountId -> cloudEntitiesMap.getFallbackAccountOid(targetId);
 
-        final Function<String, Long> resolveDefaultOid = id -> {
-            final long defaultOid = 0L;
-            logger.warn("Oid not found for id <{}>, using fallback oid <{}>", id, defaultOid);
-            return defaultOid;
-        };
-
         if (cloudBillingData.hasBillingIdentifier()) {
-            resolveOid(cloudBillingData.getBillingIdentifier(), resolveCloudOid).ifPresent(
+            resolveOptionalOid(cloudBillingData.getBillingIdentifier(), resolveTopologyOid).ifPresent(
                     billedCostData::setBillingFamilyId);
         }
 
@@ -495,8 +506,8 @@ public class BilledCloudCostUploader implements DiagsRestorable<Void> {
             final CloudBillingDataPoint firstSample =
                     cloudBillingData.getCloudCostBuckets(0).getSamples(0);
             if (firstSample.hasServiceProviderId()) {
-                resolveOid(firstSample.getServiceProviderId(), resolveCloudOid,
-                        resolveDefaultOid).ifPresent(billedCostData::setServiceProviderId);
+                resolveOptionalOid(firstSample.getServiceProviderId(), resolveTopologyOid).ifPresent(
+                        billedCostData::setServiceProviderId);
             }
         }
 
@@ -513,18 +524,18 @@ public class BilledCloudCostUploader implements DiagsRestorable<Void> {
                         BilledCostBucketKey.newBuilder();
 
                 if (cloudBillingBucketKey.hasAccountId()) {
-                    resolveOid(cloudBillingBucketKey.getAccountId(), resolveCloudOid,
+                    resolveOptionalOid(cloudBillingBucketKey.getAccountId(), resolveTopologyOid,
                             resolveTargetLocalOid, resolveFallbackAccountOid).ifPresent(
                             billedCostBucketKey::setAccountOid);
                 }
                 if (cloudBillingBucketKey.hasCloudServiceId()) {
-                    resolveOid(cloudBillingBucketKey.getCloudServiceId(), resolveCloudOid,
-                            resolveTargetLocalOid, resolveDefaultOid).ifPresent(
+                    resolveOptionalOid(cloudBillingBucketKey.getCloudServiceId(), resolveTopologyOid,
+                            resolveTargetLocalOid).ifPresent(
                             billedCostBucketKey::setCloudServiceOid);
                 }
                 if (cloudBillingBucketKey.hasRegionId()) {
-                    resolveOid(cloudBillingBucketKey.getRegionId(), resolveCloudOid,
-                            resolveTargetLocalOid, resolveDefaultOid).ifPresent(
+                    resolveOptionalOid(cloudBillingBucketKey.getRegionId(), resolveTopologyOid,
+                            resolveTargetLocalOid).ifPresent(
                             billedCostBucketKey::setRegionOid);
                 }
             }
@@ -532,42 +543,41 @@ public class BilledCloudCostUploader implements DiagsRestorable<Void> {
             for (final CloudBillingDataPoint cloudBillingDataPoint : cloudBillingBucket.getSamplesList()) {
                 final BilledCostItem.Builder billedCostItem = BilledCostItem.newBuilder();
 
-                if (cloudBillingDataPoint.hasEntityId()) {
-                    final Optional<Long> entityOid =
-                            resolveOid(cloudBillingDataPoint.getEntityId(), resolveBillingEntityOid,
-                                    resolveTargetLocalOid);
-
-                    // Entity-level cost belonging to an undiscovered entity is ignored.
-                    // For now, entities are discovered by metrics targets, not billing targets,
-                    // so a billing target in isolation cannot persist entity-level cost, yet.
-                    // As we move to allowing billing targets to discover entities, the lack of a
-                    // metrics target should become less disastrous and more of an error case.
-                    if (!entityOid.isPresent()) {
-                        logger.debug("Oid not found for entity with id <{}>; dropping its cost",
-                                cloudBillingDataPoint::getEntityId);
-                        continue;
+                try {
+                    // order of resolveTargetLocalOid vis-a-vis resolveBillingAliasOid is important for Azure,
+                    // resolveTargetLocalOid must be used before resolveBillingAliasOid.
+                    if (cloudBillingDataPoint.hasEntityId()) {
+                        billedCostItem.setEntityId(
+                                resolveRequiredOid(cloudBillingDataPoint.getEntityId(), resolveTargetLocalOid,
+                                        resolveBillingAliasOid));
                     }
-
-                    entityOid.ifPresent(billedCostItem::setEntityId);
-                }
-                if (cloudBillingDataPoint.hasAccountId()) {
-                    resolveOid(cloudBillingDataPoint.getAccountId(), resolveCloudOid,
-                            resolveTargetLocalOid, resolveFallbackAccountOid).ifPresent(
-                            billedCostItem::setAccountId);
-                }
-                if (cloudBillingDataPoint.hasCloudServiceId()) {
-                    resolveOid(cloudBillingDataPoint.getCloudServiceId(), resolveCloudOid,
-                            resolveTargetLocalOid, resolveDefaultOid).ifPresent(
-                            billedCostItem::setCloudServiceId);
-                }
-                if (cloudBillingDataPoint.hasRegionId()) {
-                    resolveOid(cloudBillingDataPoint.getRegionId(), resolveCloudOid,
-                            resolveTargetLocalOid, resolveDefaultOid).ifPresent(
-                            billedCostItem::setRegionId);
-                }
-                if (cloudBillingDataPoint.hasProviderId()) {
-                    resolveOid(cloudBillingDataPoint.getProviderId(), resolveCloudOid,
-                            resolveDefaultOid).ifPresent(billedCostItem::setProviderId);
+                    if (cloudBillingDataPoint.hasAccountId()) {
+                        billedCostItem.setAccountId(
+                                resolveRequiredOid(cloudBillingDataPoint.getAccountId(), resolveTopologyOid,
+                                        resolveTargetLocalOid, resolveFallbackAccountOid));
+                    }
+                    if (cloudBillingDataPoint.hasCloudServiceId()) {
+                        billedCostItem.setCloudServiceId(
+                                resolveRequiredOid(cloudBillingDataPoint.getCloudServiceId(), resolveTopologyOid,
+                                        resolveTargetLocalOid));
+                    }
+                    if (cloudBillingDataPoint.hasRegionId()) {
+                        billedCostItem.setRegionId(
+                                resolveRequiredOid(cloudBillingDataPoint.getRegionId(), resolveTopologyOid,
+                                        resolveTargetLocalOid));
+                    }
+                    if (cloudBillingDataPoint.hasProviderId()) {
+                        billedCostItem.setProviderId(
+                                resolveRequiredOid(cloudBillingDataPoint.getProviderId(), resolveTopologyOid));
+                    }
+                } catch (final UndiscoveredBillingOidException unresolvedOidException) {
+                    // Any cost data point that contains an unknown identifier will be dropped
+                    if (logMessageCounter.getAndIncrement() < UNRESOLVED_OID_LOG_LIMIT) {
+                        logger.warn(unresolvedOidException::getMessage);
+                    } else {
+                        logger.debug(unresolvedOidException::getMessage);
+                    }
+                    continue;
                 }
 
                 if (cloudBillingDataPoint.hasPurchasedCommodity()) {
@@ -616,12 +626,28 @@ public class BilledCloudCostUploader implements DiagsRestorable<Void> {
      * @return first OID found by applying the resolvers in order
      */
     @SafeVarargs
-    private static Optional<Long> resolveOid(@Nonnull final String identifier,
+    private static Optional<Long> resolveOptionalOid(@Nonnull final String identifier,
             @Nonnull final Function<String, Long>... resolvers) {
         return Arrays.stream(resolvers)
                 .map(resolver -> resolver.apply(identifier))
                 .filter(Objects::nonNull)
                 .findFirst();
+    }
+
+    /**
+     * Apply a list of OID resolution strategies to a mediation identifier, returning the first one
+     * that's successfully resolved, or throwing {@link UndiscoveredBillingOidException} otherwise.
+     *
+     * @param identifier entity identifier
+     * @param strategies list of OID resolution strategies
+     * @return first OID found by applying the strategies in order
+     * @throws UndiscoveredBillingOidException if no OID could be resolver for the identifier
+     */
+    @SafeVarargs
+    private static Long resolveRequiredOid(@Nonnull final String identifier,
+            @Nonnull final Function<String, Long>... strategies) throws UndiscoveredBillingOidException {
+        return resolveOptionalOid(identifier, strategies).orElseThrow(
+                () -> new UndiscoveredBillingOidException(identifier));
     }
 
     @Nonnull
@@ -754,6 +780,24 @@ public class BilledCloudCostUploader implements DiagsRestorable<Void> {
         @Nonnull
         public Optional<Throwable> getLastError() {
             return Optional.ofNullable(lastError);
+        }
+    }
+
+    /**
+     * Exception indicating that a string identifier from a mediation probe couldn't be resolved to an OID. Failing to
+     * resolve an OID means we lose some information about the cost data point, so we don't persist it as it is
+     * incomplete data. It follows that failing to resolve an OID is something that needs to be addressed because it
+     * means
+     * we will not have complete cost data.
+     */
+    public static class UndiscoveredBillingOidException extends Exception {
+        /**
+         * Constructor for {@link UndiscoveredBillingOidException}.
+         *
+         * @param identifier identifier that couldn't be resolved
+         */
+        public UndiscoveredBillingOidException(final String identifier) {
+            super(String.format("Billing identifier <%s> could not be mapped to an OID", identifier));
         }
     }
 }

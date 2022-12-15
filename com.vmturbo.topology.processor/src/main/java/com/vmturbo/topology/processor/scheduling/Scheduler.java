@@ -552,6 +552,20 @@ public class Scheduler implements TargetStoreListener, ProbeStoreListener, Requi
     public void onProbeRegistered(long probeId, ProbeInfo newProbeInfo) {
         final boolean requireSavedScheduleData = scheduleStore.containsKey(SCHEDULE_KEY_OFFSET);
         targetStore.getProbeTargets(probeId).forEach(target -> {
+            // Schedule full discovery if the probe supports it. If consul was unreachable when
+            // the target was added, we may have missed creating a full discovery schedule at
+            // that time.  If we don't create it now, we'll end up persisting a schedule with 0
+            // full discovery interval, and that causes problems on TP restart.
+            // @TODO OM-94056 come up with a better way to handle consul unavailability
+            if (newProbeInfo.hasFullRediscoveryIntervalSeconds()
+                    && !getScheduleData(target.getId(), requireSavedScheduleData).isPresent()) {
+                try {
+                    setDiscoverySchedule(target.getId(), DiscoveryType.FULL, true);
+                } catch (TargetNotFoundException | UnsupportedDiscoveryTypeException e) {
+                    logger.error("Could not set full discovery for target {}.",
+                            target.getId(), e);
+                }
+            }
             // try to stop and remove existing incremental discovery schedule if any
             stopAndRemoveDiscoverySchedule(target.getId(), DiscoveryType.INCREMENTAL);
             // try to schedule new incremental discovery if probe supports
@@ -1051,7 +1065,8 @@ public class Scheduler implements TargetStoreListener, ProbeStoreListener, Requi
                     setDiscoverySchedule(targetId, DiscoveryType.INCREMENTAL, false);
                 }
             } catch (TargetNotFoundException | UnsupportedDiscoveryTypeException e) {
-                logger.error("Failed to initialize incremental discovery schedule for target " + targetId);
+                logger.error("Failed to initialize incremental discovery schedule for target "
+                        + targetId, e);
             }
         }
     }

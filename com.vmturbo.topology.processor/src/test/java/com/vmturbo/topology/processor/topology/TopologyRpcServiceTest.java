@@ -26,6 +26,7 @@ import javax.annotation.Nullable;
 
 import io.grpc.Status;
 import io.grpc.StatusRuntimeException;
+import io.grpc.stub.StreamObserver;
 
 import org.jetbrains.annotations.NotNull;
 import org.junit.Before;
@@ -55,6 +56,7 @@ import com.vmturbo.topology.processor.group.GroupResolver;
 import com.vmturbo.topology.processor.identity.IdentityProvider;
 import com.vmturbo.topology.processor.scheduling.Scheduler;
 import com.vmturbo.topology.processor.stitching.journal.StitchingJournalFactory;
+import com.vmturbo.topology.processor.topology.TopologyRpcService.GrpcBroadcastManager;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.BroadcastStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.TopSortStage;
 import com.vmturbo.topology.processor.topology.pipeline.TopologyPipeline;
@@ -84,6 +86,16 @@ public class TopologyRpcServiceTest {
 
     @Rule
     public GrpcTestServer server = GrpcTestServer.newServer(topologyRpcServiceBackend);
+
+    /**
+     * Public method to return a GrpcBroadcastManager constructor outside the package
+     * (used in TopologyPipelineFactoryFromDiagsTest).
+     * @param responseObserver to use in the constructor
+     * @return a new instance of GrpcBroadcastManager
+     */
+    public static GrpcBroadcastManager createInstance(StreamObserver<Topology> responseObserver) {
+        return new GrpcBroadcastManager(responseObserver);
+    }
 
     @Before
     public void startup() throws Exception {

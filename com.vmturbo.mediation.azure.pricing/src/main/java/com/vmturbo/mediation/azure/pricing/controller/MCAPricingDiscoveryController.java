@@ -39,11 +39,14 @@ import com.vmturbo.mediation.azure.pricing.stages.OpenZipEntriesStage;
 import com.vmturbo.mediation.azure.pricing.stages.PlanFallbackStage;
 import com.vmturbo.mediation.azure.pricing.stages.RegroupByTypeStage;
 import com.vmturbo.mediation.azure.pricing.stages.SelectZipEntriesStage;
+import com.vmturbo.mediation.azure.pricing.stages.meterprocessing.DBStorageMeterProcessingStage;
 import com.vmturbo.mediation.azure.pricing.stages.meterprocessing.FixedSizeStorageTierProcessingStage;
 import com.vmturbo.mediation.azure.pricing.stages.meterprocessing.IPMeterProcessingStage;
+import com.vmturbo.mediation.azure.pricing.stages.meterprocessing.IndividuallyPricedDbTierProcessingStage;
 import com.vmturbo.mediation.azure.pricing.stages.meterprocessing.InstanceTypeProcessingStage;
 import com.vmturbo.mediation.azure.pricing.stages.meterprocessing.LicensePriceProcessingStage;
 import com.vmturbo.mediation.azure.pricing.stages.meterprocessing.LinearSizeStorageTierProcessingStage;
+import com.vmturbo.mediation.azure.pricing.stages.meterprocessing.PricedPerDTUDatabaseTierProcessingStage;
 import com.vmturbo.mediation.azure.pricing.stages.meterprocessing.UltraDiskStorageTierMeterProcessingStage;
 import com.vmturbo.mediation.azure.pricing.util.PriceConverter;
 import com.vmturbo.mediation.azure.pricing.util.VmSizeParser;
@@ -195,6 +198,14 @@ public class MCAPricingDiscoveryController extends
                 .addStage(new FixedSizeStorageTierProcessingStage(MCAPricingProbeStage.FIXED_SIZE_STORAGE_TIER_PRICE_PROCESSOR))
                 .addStage(new LinearSizeStorageTierProcessingStage(MCAPricingProbeStage.LINEAR_SIZE_STORAGE_TIER_PRICE_PROCESSOR))
                 .addStage(new UltraDiskStorageTierMeterProcessingStage(MCAPricingProbeStage.ULTRA_DISK_STORAGE_TIER))
+                // This must come before other database pricing processors, which will consume
+                // the discovered storage pricing and include it in their DTOs.
+                .addStage(new DBStorageMeterProcessingStage(MCAPricingProbeStage.DB_STORAGE_METER_PROCESSOR))
+                // Individually Priced DBTier is the first DBTier Processing stage.
+                .addStage(new IndividuallyPricedDbTierProcessingStage(MCAPricingProbeStage.INDIVIDUALLY_PRICED_DB_TIER_PROCESSOR))
+                // Price-per-DTU comes after individually priced, so that it can check for and not
+                // overwrite any individual prices.
+                .addStage(new PricedPerDTUDatabaseTierProcessingStage(MCAPricingProbeStage.PER_DTU_DATABASE_TIER_PROCESSOR))
                 .finalStage(new AssignPricingIdentifiersStage(MCAPricingProbeStage.ASSIGN_IDENTIFIERS,
                     MCA_PLANID_MAP)));
     }

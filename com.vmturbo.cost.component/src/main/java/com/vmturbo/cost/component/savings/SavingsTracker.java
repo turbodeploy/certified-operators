@@ -24,6 +24,7 @@ import java.util.stream.Stream;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableSet;
 
 import org.apache.commons.collections4.SetUtils;
@@ -266,11 +267,15 @@ public class SavingsTracker extends SQLEntityCloudScopedStore implements Scenari
                             .collect(Collectors.joining("\n")));
 
         });
-        //Check if the record is already present or insert a new record into cloud scope table
-        insertCloudScopeRecords(entityOids);
-
+        // Check if the record is already present or insert a new record into cloud scope table.
+        final Set<Long> missingEntities = new HashSet<>();
+        insertCloudScopeRecords(entityOids, missingEntities);
+        // If an entity is not in the topology, check if the scope record already exists in the
+        // scope table. If the scope record does not present, the savings of that entity cannot be added.
+        List<SavingsValues> savingsValuesWithScopes = excludeSavingsWithoutScopeRecords(
+                allSavingsValues, missingEntities);
         // Once we are done processing all the states for this period, we write stats.
-        return savingsStore.writeDailyStats(allSavingsValues);
+        return savingsStore.writeDailyStats(savingsValuesWithScopes);
     }
 
     /**
@@ -312,6 +317,27 @@ public class SavingsTracker extends SQLEntityCloudScopedStore implements Scenari
         processSavings(participatingUuids, billRecords, actions,
                 TimeUtil.localTimeToMillis(startTime.truncatedTo(ChronoUnit.DAYS).minusDays(1),
                         Clock.systemUTC()), endTime);
+    }
+
+    /**
+     * Find out if any of the savingsValues belongs to entities that don't have scope records in the
+     * entity_cloud_scope table. The scope records of deleted entities may not be present. Return a
+     * list of savings values for entities that have scope records.
+     *
+     * @param savingsValues list of all savings values returned by the savings calculator
+     * @param missingEntities Set of OIDs of deleted entities
+     * @return list of savings values that have scope records in the parent table.
+     */
+    @VisibleForTesting
+    List<SavingsValues> excludeSavingsWithoutScopeRecords(List<SavingsValues> savingsValues,
+            Set<Long> missingEntities) {
+        final Set<Long> entitiesWithoutScopes = savingsStore.getEntitiesWithoutScopeRecords(missingEntities);
+        List<SavingsValues> savingsValuesWithScopes = savingsValues.stream()
+                .filter(x -> !entitiesWithoutScopes.contains(x.getEntityOid()))
+                .collect(Collectors.toList());
+        logger.warn("The savings of the following entities cannot be recorded because they don't have scope records: {}",
+                entitiesWithoutScopes.stream().map(Object::toString).collect(Collectors.joining(", ")));
+        return savingsValuesWithScopes;
     }
 
     /**
@@ -407,19 +433,19 @@ public class SavingsTracker extends SQLEntityCloudScopedStore implements Scenari
                 repositoryClient.retrieveTopologyEntities(entityOidList, realtimeTopologyContextId));
     }
 
-    private void insertCloudScopeRecords(Set<Long> entityOids) throws EntitySavingsException {
+    private void insertCloudScopeRecords(Set<Long> entityOids, @Nonnull Set<Long> missingEntities) throws EntitySavingsException {
         List<EntityCloudScopeRecord> scopeRecords;
         if (Objects.isNull(repositoryClient)) {
             // For Unit Tests
             scopeRecords = entityOids.stream()
-                    .map(entityOid -> createCloudScopeRecord(entityOid, null))
+                    .map(entityOid -> createCloudScopeRecord(entityOid, null, missingEntities))
                     .filter(Objects::nonNull)
                     .collect(Collectors.toList());
         } else {
             // Check if the record is present in the table or create a new record
             TopologyEntityCloudTopology cloudTopology = createCloudTopology(entityOids);
             scopeRecords = entityOids.stream()
-                    .map(entityOid -> createCloudScopeRecord(entityOid, cloudTopology))
+                    .map(entityOid -> createCloudScopeRecord(entityOid, cloudTopology, missingEntities))
                     .filter(Objects::nonNull)
                     .collect(Collectors.toList());
         }
@@ -436,14 +462,17 @@ public class SavingsTracker extends SQLEntityCloudScopedStore implements Scenari
      * If the method is called by a test, the cloudTopology parameter is null and a record with
      * dummy values will be returned. For the production workflow, the cloudTopology parameter
      * should be provided.
+     * If the entity is not found in the topology, the OID of the entity will be added to the
+     * missingEntities set which is passed in as a parameter and a null will be returned.
      *
      * @param entityOid Entity OID
      * @param cloudTopology cloud topology
+     * @param missingEntities set of OIDs of entities not in the topology
      * @return EntityCloudScopeRecord to be inserted or updated
      */
     @Nullable
     private EntityCloudScopeRecord createCloudScopeRecord(Long entityOid,
-            @Nullable TopologyEntityCloudTopology cloudTopology) {
+            @Nullable TopologyEntityCloudTopology cloudTopology, @Nonnull Set<Long> missingEntities) {
         Integer entityType;
         Long serviceProviderOid;
         Long regionOid;
@@ -490,6 +519,7 @@ public class SavingsTracker extends SQLEntityCloudScopedStore implements Scenari
             // The entity is not in the topology.
             logger.debug("Cannot create entity cloud scope record for entity {} because it is not found in topology.",
                     entityOid);
+            missingEntities.add(entityOid);
             return null;
         }
 

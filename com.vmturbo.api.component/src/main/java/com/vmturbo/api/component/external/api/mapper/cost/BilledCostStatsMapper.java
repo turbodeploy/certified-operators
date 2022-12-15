@@ -1,6 +1,7 @@
 package com.vmturbo.api.component.external.api.mapper.cost;
 
 import java.util.Collection;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -138,8 +139,9 @@ public class BilledCostStatsMapper {
                     statSnapshot.setStatistics(ImmutableList.copyOf(statsGroup.getValue()));
 
                     return statSnapshot;
-
-                }).collect(ImmutableList.toImmutableList());
+                })
+                .sorted(Comparator.comparing(StatSnapshotApiDTO::getDate))
+                .collect(ImmutableList.toImmutableList());
     }
 
     private StatValueApiDTO toStatValueDto(@Nonnull StatValues statValues) {

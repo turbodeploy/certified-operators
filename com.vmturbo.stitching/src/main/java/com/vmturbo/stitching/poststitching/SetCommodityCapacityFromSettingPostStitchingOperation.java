@@ -27,9 +27,9 @@ import com.vmturbo.stitching.TopologyEntity;
             implements PostStitchingOperation {
 
         private final String settingName;
-        private final EntityType entityType;
-        private final ProbeCategory probeCategory;
-        private final CommodityType commodityType;
+        protected final EntityType entityType;
+        protected final ProbeCategory probeCategory;
+        protected final CommodityType commodityType;
 
         private static final Logger logger = LogManager.getLogger();
 

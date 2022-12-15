@@ -42,6 +42,7 @@ import com.vmturbo.stitching.poststitching.SetAutoSetCommodityCapacityPostStitch
 import com.vmturbo.stitching.poststitching.SetCommBoughtUsedFromCommSoldMaxPostStitchingOperation;
 import com.vmturbo.stitching.poststitching.SetCommodityCapacityFromSettingPostStitchingOperation;
 import com.vmturbo.stitching.poststitching.SetCommodityMaxQuantityPostStitchingOperation;
+import com.vmturbo.stitching.poststitching.SetDefaultCommodityCapacityPostStitchingOperation;
 import com.vmturbo.stitching.poststitching.SetMovableFalseForHyperVAndVMMNotClusteredVmsOperation;
 import com.vmturbo.stitching.poststitching.SetResizeDownAnalysisSettingPostStitchingOperation;
 import com.vmturbo.stitching.poststitching.SetTransactionsCapacityPostStitchingOperation;
@@ -140,6 +141,12 @@ public class PostStitchingOperationLibrary {
                 ProbeCategory.CLOUD_MANAGEMENT,
                 CommodityType.RESPONSE_TIME,
                 EntitySettingSpecs.ResponseTimeSLO.getSettingName()),
+            // APPLICATION_COMPONENT_SPEC does have a default setting yet, using default value set
+            // for ResponseTimeSLO setting instead.
+            new SetDefaultCommodityCapacityPostStitchingOperation(EntityType.APPLICATION_COMPONENT_SPEC,
+                    ProbeCategory.CLOUD_MANAGEMENT,
+                    CommodityType.RESPONSE_TIME,
+                    (Float)EntitySettingSpecs.ResponseTimeSLO.getDataStructure().getDefault(EntityType.APPLICATION_COMPONENT_SPEC)),
             new SetTransactionsCapacityPostStitchingOperation(EntityType.SERVICE,
                 ProbeCategory.CLOUD_MANAGEMENT,
                 EntitySettingSpecs.TransactionSLO.getSettingName(),

@@ -44,9 +44,6 @@ public class PostgresAdapter extends DbAdapter {
     /** Prefix for the name of the writers group role. */
     private static final String WRITERS_GROUP_ROLE_PREFIX = "writers";
 
-    private static final String DUPLICATE_DATABASE_SQLSTATE = "42P04";
-    private static final String DUPLICATE_OBJECT_SQLSTATE = "42710";
-
     PostgresAdapter(final DbEndpointConfig config) {
         super(config);
     }
@@ -68,15 +65,17 @@ public class PostgresAdapter extends DbAdapter {
     @Override
     protected void createNonRootUser() throws SQLException, UnsupportedDialectException {
         final String userName = config.getUserName();
-        createRoleIfNotExists(userName, config.getPassword());
+        setCreatedUser(createRoleIfNotExists(userName, true));
+        setUserPassword(userName, config.getPassword());
         try (Connection conn = getPrivilegedConnection()) {
             execute(conn, String.format("GRANT USAGE, CREATE ON SCHEMA %s TO %s",
                     config.getSchemaName(), userName));
             execute(conn, String.format("GRANT ALL ON DATABASE %s TO %s",
                     config.getDatabaseName(), userName));
             execute(conn,
-                    String.format("ALTER ROLE \"%s\" IN DATABASE \"%s\" SET search_path = \"%s\",\"public\"",
-                    userName, config.getDatabaseName(), config.getSchemaName()));
+                    String.format(
+                            "ALTER ROLE \"%s\" IN DATABASE \"%s\" SET search_path = \"%s\",\"public\"",
+                            userName, config.getDatabaseName(), config.getSchemaName()));
         }
     }
 
@@ -84,7 +83,9 @@ public class PostgresAdapter extends DbAdapter {
     protected void createReadersGroup() throws SQLException, UnsupportedDialectException {
         // create readers group role if it doesn't exist
         final String readersGroupRoleName = getGroupName(READERS_GROUP_ROLE_PREFIX);
-        createRoleIfNotExists(readersGroupRoleName, null);
+        if (createRoleIfNotExists(readersGroupRoleName, false)) {
+            createdGroups.add(readersGroupRoleName);
+        }
         // grant privileges to read only user
         try (Connection conn = getPrivilegedConnection()) {
             execute(conn, String.format("GRANT CONNECT ON DATABASE \"%s\" TO \"%s\"",
@@ -100,7 +101,9 @@ public class PostgresAdapter extends DbAdapter {
     protected void createWritersGroup() throws SQLException, UnsupportedDialectException {
         // create writers group role if it doesn't exist
         final String writersGroupRoleName = getGroupName(WRITERS_GROUP_ROLE_PREFIX);
-        createRoleIfNotExists(writersGroupRoleName, null);
+        if (createRoleIfNotExists(writersGroupRoleName, false)) {
+            createdGroups.add(writersGroupRoleName);
+        }
         // grant privileges to writer user
         try (Connection conn = getPrivilegedConnection()) {
             execute(conn, String.format("GRANT CONNECT ON DATABASE \"%s\" TO \"%s\"",
@@ -218,15 +221,29 @@ public class PostgresAdapter extends DbAdapter {
 
     @Override
     protected void createSchema() throws SQLException, UnsupportedDialectException {
-        createDatabaseIfNotExists(config.getDatabaseName());
-        createSchema(config.getSchemaName(), false);
+        setCreatedDatabase(createDatabaseIfNotExists(config.getDatabaseName()));
+        setCreatedSchema(createSchemaIfNotExists(config.getSchemaName(), false));
     }
 
-    private void createSchema(String schemaName, boolean setOwner)
+    private boolean createSchemaIfNotExists(String schemaName, boolean setOwner)
             throws SQLException, UnsupportedDialectException {
-        try (Connection conn = getPrivilegedConnection()) {
-            execute(conn, String.format("CREATE SCHEMA IF NOT EXISTS \"%s\"%s", schemaName,
-                    setOwner ? " AUTHORIZATION \"" + config.getUserName() + "\"" : ""));
+        if (!schemaExists(schemaName)) {
+            try (Connection conn = getPrivilegedConnection()) {
+                execute(conn, String.format("CREATE SCHEMA IF NOT EXISTS \"%s\"%s", schemaName,
+                        setOwner ? " AUTHORIZATION \"" + config.getUserName() + "\"" : ""));
+                return true;
+            }
+        } else {
+            return false;
+        }
+    }
+
+    private boolean schemaExists(String name) throws SQLException, UnsupportedDialectException {
+        try (Connection conn = getRootConnection()) {
+            ResultSet rs = conn.createStatement().executeQuery(String.format(
+                    "SELECT 1 FROM information_schema.schemata WHERE schema_name = '%s'", name));
+            // this tests if the result set has any rows; if so, schema already exists
+            return rs.next();
         }
     }
 
@@ -240,16 +257,24 @@ public class PostgresAdapter extends DbAdapter {
      *                                     database already exists
      * @throws UnsupportedDialectException for unsupported dialect
      */
-    private void createDatabaseIfNotExists(String name)
+    private boolean createDatabaseIfNotExists(String name)
             throws UnsupportedDialectException, SQLException {
-        try (Connection conn = getRootConnection()) {
-            execute(conn, String.format("CREATE DATABASE \"%s\"", name));
-        } catch (SQLException e) {
-            if (e.getSQLState().equals(DUPLICATE_DATABASE_SQLSTATE)) {
-                logger.info("Database {} already exists", name);
-            } else {
-                throw e;
+        if (!databaseExists(name)) {
+            try (Connection conn = getRootConnection()) {
+                execute(conn, String.format("CREATE DATABASE \"%s\"", name));
+                return true;
             }
+        } else {
+            return false;
+        }
+    }
+
+    private boolean databaseExists(String name) throws SQLException, UnsupportedDialectException {
+        try (Connection conn = getRootConnection()) {
+            ResultSet rs = conn.createStatement().executeQuery(
+                    String.format("SELECT 1 FROM pg_database WHERE datname = '%s'", name));
+            // following tests if the result set has any rows; if so, database exists
+            return rs.next();
         }
     }
 
@@ -262,33 +287,45 @@ public class PostgresAdapter extends DbAdapter {
      * (We don't include it in `CREATE USER` because we want it re-done on restart, in case the
      * password has been reset to a value that doesn't match the configuration.</p>
      *
-     * @param name     user name
-     * @param password password, or null to not set a password
-     * @throws UnsupportedDialectException for unsupported dialect
+     * @param name     role name
+     * @param isUser   true if this role can log in as a user
+     * @return true if the role was created
      * @throws SQLException                if the operation fails for any reason other than that the
      *                                     role already exists
+     * @throws UnsupportedDialectException for unsupported dialect
      */
-    private void createRoleIfNotExists(String name, String password)
+    private boolean createRoleIfNotExists(String name, boolean isUser)
             throws UnsupportedDialectException, SQLException {
-        final String roleOrUser = password != null ? "USER" : "ROLE";
+        if (!roleExists(name)) {
+            final String roleOrUser = isUser ? "USER" : "ROLE";
+            try (Connection conn = getRootConnection()) {
+                execute(conn, String.format("CREATE %s \"%s\"", roleOrUser, name));
+                return true;
+            }
+        } else {
+            return false;
+        }
+    }
+
+    private boolean roleExists(String name) throws SQLException, UnsupportedDialectException {
+        try (Connection conn = getRootConnection()) {
+            ResultSet rs = conn.createStatement().executeQuery(String.format(
+                    "SELECT 1 FROM pg_roles WHERE rolname = '%s'", name));
+            // following checks if result set has any rows; if so, role already exists
+            return rs.next();
+        }
+    }
+
+    private void setUserPassword(String userName, String password)
+            throws SQLException, UnsupportedDialectException {
         try (Connection conn = getRootConnection()) {
             try {
-                execute(conn, String.format("CREATE %s \"%s\"", roleOrUser, name));
+                execute(conn, String.format("ALTER USER \"%s\" WITH PASSWORD '%s'",
+                        userName, password));
             } catch (SQLException e) {
-                if (e.getSQLState().equals(DUPLICATE_OBJECT_SQLSTATE)) {
-                    logger.info("Role {} already exists", name);
-                } else {
-                    throw e;
-                }
-            }
-            if (password != null) {
-                try {
-                    execute(conn, String.format("ALTER USER \"%s\" WITH PASSWORD '%s'",
-                            name, config.getPassword()));
-                } catch (SQLException e) {
-                    throw copySQLExceptionWithoutStack(
-                            String.format("Failed to set password for user `%s`@'%%'", name), e);
-                }
+                throw copySQLExceptionWithoutStack(
+                        String.format("Failed to set password for user `%s`@'%%'", userName),
+                        e);
             }
         }
     }
@@ -299,7 +336,7 @@ public class PostgresAdapter extends DbAdapter {
             if (plugin instanceof PostgresPlugin) {
                 Optional<String> pluginSchema = ((PostgresPlugin)plugin).getPluginSchema();
                 if (pluginSchema.isPresent()) {
-                    createSchema(pluginSchema.get(), true);
+                    createSchemaIfNotExists(pluginSchema.get(), true);
                 }
                 try (Connection conn = getPrivilegedConnection()) {
                     String schemaName = pluginSchema.orElse(config.getSchemaName());
@@ -380,32 +417,37 @@ public class PostgresAdapter extends DbAdapter {
 
     @Override
     public void tearDown() {
-        try (Connection conn = getRootConnection("postgres")) {
-            execute(conn, String.format("DROP DATABASE IF EXISTS \"%s\"",
-                    config.getDatabaseName()));
-        } catch (UnsupportedDialectException | SQLException e) {
-            logger.error("Failed to drop database {}", config.getDatabaseName(), e);
+        if (createdSchema.getValue().orElse(false)) {
+            try (Connection conn = getRootConnection("postgres")) {
+                execute(conn,
+                        String.format("DROP SCHEMA IF EXISTS \"%s\"", config.getSchemaName()));
+            } catch (SQLException | UnsupportedDialectException e) {
+                throw new RuntimeException(e);
+            }
         }
-        try (Connection conn = getRootConnection("postgres")) {
-            execute(conn, String.format("DROP USER IF EXISTS \"%s\"",
-                    config.getUserName()));
-        } catch (UnsupportedDialectException | SQLException e) {
-            logger.error("Failed to drop user {}", config.getUserName(), e);
+        if (createdDatabase.getValue().orElse(false)) {
+            try (Connection conn = getRootConnection("postgres")) {
+                execute(conn, String.format("DROP DATABASE IF EXISTS \"%s\"",
+                        config.getDatabaseName()));
+            } catch (UnsupportedDialectException | SQLException e) {
+                logger.error("Failed to drop database {}", config.getDatabaseName(), e);
+            }
         }
-        try (Connection conn = getRootConnection("postgres")) {
-            execute(conn, String.format("DROP ROLE IF EXISTS \"%s\"",
-                    getGroupName(READERS_GROUP_ROLE_PREFIX)));
-        } catch (UnsupportedDialectException | SQLException e) {
-            logger.error("Failed to drop readers group {}",
-                    getGroupName(READERS_GROUP_ROLE_PREFIX), e);
+        if (createdUser.getValue().orElse(false)) {
+            try (Connection conn = getRootConnection("postgres")) {
+                execute(conn, String.format("DROP USER IF EXISTS \"%s\"",
+                        config.getUserName()));
+            } catch (UnsupportedDialectException | SQLException e) {
+                logger.error("Failed to drop user {}", config.getUserName(), e);
+            }
         }
-        try (Connection conn = getRootConnection("postgres")) {
-            execute(conn, String.format("DROP ROLE IF EXISTS \"%s\"",
-                    getGroupName(WRITERS_GROUP_ROLE_PREFIX)));
-        } catch (UnsupportedDialectException | SQLException e) {
-            logger.error("Failed to drop writers group {}",
-                    getGroupName(WRITERS_GROUP_ROLE_PREFIX), e);
-        }
+        createdGroups.forEach(group -> {
+            try (Connection conn = getRootConnection("postgres")) {
+                execute(conn, String.format("DROP ROLE IF EXISTS \"%s\"", group));
+            } catch (UnsupportedDialectException | SQLException e) {
+                logger.error("Failed to drop group {}", group, e);
+            }
+        });
     }
 
     @Override

@@ -50,11 +50,11 @@ public class TopologyPipelineTest {
         cachedMap.put(1L, builder);
         final CachedTopologyResult cachedResult = new CachedTopologyResult(cachedMap);
         when(cachedTopo.getTopology()).thenReturn(cachedResult);
-        final EntityStore entityStore = mock(EntityStore.class);
-        final TopologyPipeline<EntityStore, Map<Long, TopologyEntityDTO.Builder>> pipeline =
-            new TopologyPipeline<>(PipelineDefinition.<EntityStore, Map<Long, TopologyEntityDTO.Builder>, TopologyPipelineContext>newBuilder(context)
+        final PipelineInput pipelineInput = mock(PipelineInput.class);
+        final TopologyPipeline<PipelineInput, Map<Long, TopologyEntityDTO.Builder>> pipeline =
+            new TopologyPipeline<>(PipelineDefinition.<PipelineInput, Map<Long, TopologyEntityDTO.Builder>, TopologyPipelineContext>newBuilder(context)
                 .finalStage(new CachingConstructTopologyFromStitchingContextStage(cachedTopo)));
-        assertThat(pipeline.run(entityStore), is(cachedMap));
+        assertThat(pipeline.run(pipelineInput), is(cachedMap));
     }
 
     @Test

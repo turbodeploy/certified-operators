@@ -14,6 +14,9 @@ import com.vmturbo.platform.sdk.common.supplychain.SupplyChainConstants;
  *  Populate the {@link TypeSpecificInfo} unique to a PhysicalMachine - i.e. {@link PhysicalMachineInfo}
  **/
 public class PhysicalMachineInfoMapper extends TypeSpecificInfoMapper {
+    private static final String MACHINE_TYPE_MODEL = "machineTypeAndModel";
+    private static final String PROCESSOR_COMPAT_MODES = "supportedProcessorCompatibilityModes";
+
     @Override
     public TypeSpecificInfo mapEntityDtoToTypeSpecificInfo(
             @Nonnull final EntityDTOOrBuilder sdkEntity,
@@ -36,6 +39,12 @@ public class PhysicalMachineInfoMapper extends TypeSpecificInfoMapper {
         }
         if (entityPropertyMap.containsKey(SupplyChainConstants.TIME_ZONE)) {
             physicalMachineInfoBuilder.setTimezone(entityPropertyMap.get(SupplyChainConstants.TIME_ZONE));
+        }
+        if (entityPropertyMap.containsKey(MACHINE_TYPE_MODEL)) {
+            physicalMachineInfoBuilder.setModel(entityPropertyMap.get(MACHINE_TYPE_MODEL));
+        }
+        if (entityPropertyMap.containsKey(PROCESSOR_COMPAT_MODES)) {
+            physicalMachineInfoBuilder.setProcessorCompatibilityModes(entityPropertyMap.get(PROCESSOR_COMPAT_MODES));
         }
         if (physicalMachineData.hasNumCpuCores()) {
             physicalMachineInfoBuilder.setNumCpus(physicalMachineData.getNumCpuCores());
