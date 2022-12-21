@@ -59,7 +59,7 @@ public class ProbeVersionFactory {
      *  Error messages specific to CLoud Native probes.
      */
     enum CloudNativeAdditionalErrorMessage {
-        CPU_THROTTLING_BREAKING_CHANGE_MESSAGE("Container CPU limit resize actions will be disabled.");
+        CPU_THROTTLING_BREAKING_CHANGE_MESSAGE("Container CPU limit resize actions are currently disabled.");
         private final String message;
 
         CloudNativeAdditionalErrorMessage(String message) {
