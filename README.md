@@ -1,3 +1,5 @@
+This is for Auto PR creation test
+
 # Red Hat certified operators production catalog
 Production catalog for Red Hat Certified Operator Bundles
 
